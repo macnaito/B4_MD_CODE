@@ -48,7 +48,7 @@ c----- Atom 3
 
       do i=1,n
       write(10,'(a,i5,6e15.7)') 'Ar',i,
-     & (3*i-2)*bohr,x(3*i-1)*bohr,x(3*i)*bohr,
+     & x(3*i-2)*bohr,x(3*i-1)*bohr,x(3*i)*bohr,
      & v(3*i-2),v(3*i-1),v(3*i)
       enddo
  
