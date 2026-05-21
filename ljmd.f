@@ -6,7 +6,7 @@
       implicit none
 
       integer nmax
-      parameter(nmax=3000)
+      parameter(nmax=30000)
 
       integer i,j,k,m,n,maxstep,itemp
       real*8 x(3*nmax),v(3*nmax),dfdx(3*nmax)
