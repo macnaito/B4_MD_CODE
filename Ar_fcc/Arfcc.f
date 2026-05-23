@@ -1,4 +1,4 @@
-      program arfcc
+      program Arfcc
       implicit none
       integer nmax,n,i,j,k,l,inc,m
       real*8 bohr,sgm
@@ -64,16 +64,16 @@
 
       close(10)
 
-      open(11,file='init.xyz')
-          write(11,*)n
-          write(11,'(a,3(3e15.7),a,a)')
-     &       'Lattice="',hxx,0.0,0.0,0.0,hyy,0.0,0.0,0.0,hzz,'" ',
-     &       'Properties=species:S:1:id:I:1:pos:R:3:tempK:R:1'
-          do m=1,n
-            write(11,'(a2,i5,4e15.7)')'Ar',m,
-     &       x(3*m-2)*bohr,x(3*m-1)*bohr,x(3*m)*bohr,0.0d0
-          enddo
-      close(11)
+!      open(11,file='init.xyz')
+!          write(11,*)n
+!          write(11,'(a,3(3e15.7),a,a)')
+!     &       'Lattice="',hxx,0.0,0.0,0.0,hyy,0.0,0.0,0.0,hzz,'" ',
+!     &       'Properties=species:S:1:id:I:1:pos:R:3:tempK:R:1'
+!         do m=1,n
+!            write(11,'(a2,i5,4e15.7)')'Ar',m,
+!     &       x(3*m-2)*bohr,x(3*m-1)*bohr,x(3*m)*bohr,0.0d0
+!          enddo
+!      close(11)
 
       end
 
