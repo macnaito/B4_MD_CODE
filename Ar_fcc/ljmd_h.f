@@ -10,7 +10,7 @@
 
       integer i,j,k,m,n,maxstep,itemp
       real*8 x(3*nmax),v(3*nmax),dfdx(3*nmax)
-      real*8 f,ekin,totalenergy,dt
+      real*8 f,ekin,totalenergy,dt,TK
       real*8 hxx,hyy,hzz,temp,dummy,tempK
       real*8 amass,bohr
 
@@ -25,7 +25,7 @@
 !-----time step in atomic unit.
       dt=41d0*5d0
 !-----total number of steps
-      maxstep=1000
+      maxstep=10000
 
 !-----read the initial atomic positions and velocities
       open(10,file='init.dat')
@@ -47,8 +47,8 @@
       filename='out000.chem3d'
       filename2='out000.xyz'
 
-      write(*,*)
-     & ' time(sec)    Kin-eng(a.u.)   pot-eng(a.u.)   total-eng(a.u.)'
+!      write(*,*)
+!     & ' time(sec)    Kin-eng(a.u.)   pot-eng(a.u.)   total-eng(a.u.)'
 
       k=0
 
@@ -69,6 +69,7 @@
 
         do j=1,3*n
           v(j)=v(j)+(dt/2d0)*(-dfdx(j)/amass)
+          v(j)=v(j)*1.0005d0
         enddo
 
         ekin=0d0
@@ -79,7 +80,7 @@
         totalenergy=f+ekin
 
 !-------Note: 1 atomic unit of time = 2.42d-17 sec
-        write(*,*)dt*i*2.42d-17,ekin,f,totalenergy
+!        write(*,*)dt*i*2.42d-17,ekin,f,totalenergy
 
         if(mod(i,100).eq.0)then
 
@@ -101,6 +102,7 @@ c-----chem3d
 !          close(10)
 
 c-----xyz
+          TK=0.d0
           open(11,file=filename2)
           write(11,*)n
           write(11,'(a,3(3e15.7),a,a)')
@@ -111,8 +113,11 @@ c-----xyz
      &        *27.2116*11605d0
             write(11,'(a2,i5,4e15.7)')lsp(m),m,
      &       x(3*m-2)*bohr,x(3*m-1)*bohr,x(3*m)*bohr,tempK
+            TK=TK+tempk
           enddo
           close(11)
+          write(*,*)k,TK/n
+
 
         endif
 
