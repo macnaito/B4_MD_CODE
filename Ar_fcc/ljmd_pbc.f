@@ -25,7 +25,7 @@
 !-----time step in atomic unit.
       dt=41d0*5d0
 !-----total number of steps
-      maxstep=2000
+      maxstep=4000
 
 
 !-----read the initial atomic positions and velocities
@@ -59,6 +59,7 @@
 
         do j=1,3*n
           v(j)=v(j)+(dt/2d0)*(-dfdx(j)/amass)
+!          v(j)=v(j)*1.005
         enddo
 
         do j=1,n
@@ -86,7 +87,7 @@
 
         do j=1,3*n
           v(j)=v(j)+(dt/2d0)*(-dfdx(j)/amass)
-          v(j)=v(j)*(1.01)
+  
         enddo
 
         ekin=0d0
@@ -99,7 +100,7 @@
 !-------Note: 1 atomic unit of time = 2.42d-17 sec
 !        write(*,*)dt*i*2.42d-17,ekin,f,totalenergy
 
-        if(mod(i,100).eq.0)then
+        if(mod(i,200).eq.0)then
 
           k=k+1
           write(filename(4:6),'(i3.3)')k

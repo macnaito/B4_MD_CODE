@@ -11,10 +11,12 @@
       real*8 xp(4),yp(4),zp(4),cunit
       tempK=0
 
-      cunit=2.0d0**(1d0/6)*sgm*sqrt(2d0)*0.7
-      hxx=7*cunit*bohr
-      hyy=7*cunit*bohr
-      hzz=7*cunit*bohr
+      cunit=2.0d0**(1d0/6)*sgm*sqrt(2d0)*0.98
+
+      write(*,*)cunit
+      hxx=6*cunit*bohr
+      hyy=6*cunit*bohr
+      hzz=6*cunit*bohr
 
  
       xp(1)=0d0
@@ -32,9 +34,9 @@
 
       
       inc=0
-      do i=0,6
-      do j=0,6
-      do k=0,6
+      do i=0,5
+      do j=0,5
+      do k=0,5
         do l=1,4
           inc=inc+1
           x(3*inc-2)=(xp(l)+dble(i))*cunit
