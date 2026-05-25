@@ -6,13 +6,13 @@
       implicit none
 
       integer nmax
-      parameter(nmax=30000)
+      parameter(nmax=2000)
 
       integer i,j,k,m,n,maxstep,itemp
       real*8 x(3*nmax),v(3*nmax),dfdx(3*nmax)
-      real*8 f,ekin,totalenergy,dt,TK
+      real*8 f,ekin,totalenergy,dt
       real*8 hxx,hyy,hzz,temp,dummy,tempK
-      real*8 amass,bohr
+      real*8 amass,bohr,hx,hy,hz,TK
 
       character*2 lsp(nmax)
       character*40 filename,filename2
@@ -25,7 +25,8 @@
 !-----time step in atomic unit.
       dt=41d0*5d0
 !-----total number of steps
-      maxstep=10000
+      maxstep=2000
+
 
 !-----read the initial atomic positions and velocities
       open(10,file='init.dat')
@@ -39,21 +40,20 @@
         x(3*i-1)=x(3*i-1)/bohr
         x(3*i  )=x(3*i  )/bohr
       enddo
-      read(10,*)hxx,dummy,temp
-      read(10,*)temp,hyy,temp
-      read(10,*)temp,temp,hzz
+      read(10,*)hx,dummy,temp
+      read(10,*)temp,hy,temp
+      read(10,*)temp,temp,hz
+      hxx=hx/bohr
+      hyy=hy/bohr
+      hzz=hz/bohr
       close(10)
 
-      filename='out000.chem3d'
       filename2='out000.xyz'
-
-!      write(*,*)
-!     & ' time(sec)    Kin-eng(a.u.)   pot-eng(a.u.)   total-eng(a.u.)'
 
       k=0
 
 !-----velocity-Verlet algorithm
-      call pot(f,dfdx,x,n)
+      call pot(f,dfdx,x,n,hxx,hyy,hzz)
 
       do i=1,maxstep
 
@@ -61,15 +61,32 @@
           v(j)=v(j)+(dt/2d0)*(-dfdx(j)/amass)
         enddo
 
-        do j=1,3*n
-          x(j)=x(j)+dt*v(j)
+        do j=1,n
+          x(3*j-2)=x(3*j-2)+dt*v(3*j-2)
+          if (x(3*j-2).gt.hxx) then
+            x(3*j-2)=x(3*j-2)-hxx
+          else if (x(3*j-2).lt.0d0) then
+            x(3*j-2)=x(3*j-2)+hxx
+          endif 
+          x(3*j-1)=x(3*j-1)+dt*v(3*j-1)
+          if (x(3*j-1).gt.hyy) then
+            x(3*j-1)=x(3*j-1)-hyy
+          else if (x(3*j-1).lt.0d0) then
+            x(3*j-1)=x(3*j-1)+hyy
+          endif
+          x(3*j  )=x(3*j  )+dt*v(3*j  )
+          if (x(3*j  ).gt.hzz) then
+            x(3*j  )=x(3*j  )-hzz
+          else if (x(3*j  ).lt.0d0) then
+            x(3*j  )=x(3*j  )+hzz
+          endif
         enddo  
 
-        call pot(f,dfdx,x,n)
+        call pot(f,dfdx,x,n,hxx,hyy,hzz)
 
         do j=1,3*n
           v(j)=v(j)+(dt/2d0)*(-dfdx(j)/amass)
-          v(j)=v(j)*1.0005d0
+          v(j)=v(j)*(1.01)
         enddo
 
         ekin=0d0
@@ -102,22 +119,20 @@ c-----chem3d
 !          close(10)
 
 c-----xyz
-          TK=0.d0
           open(11,file=filename2)
           write(11,*)n
           write(11,'(a,3(3e15.7),a,a)')
-     &       'Lattice="',hxx,0.0,0.0,0.0,hyy,0.0,0.0,0.0,hzz,'" ',
+     &       'Lattice="',hx,0.0,0.0,0.0,hy,0.0,0.0,0.0,hz,'" ',
      &       'Properties=species:S:1:id:I:1:pos:R:3:tempK:R:1'
            do m=1,n
             tempK=amass/2*(v(3*m-2)**2+v(3*m-1)**2+v(3*m)**2)
      &        *27.2116*11605d0
             write(11,'(a2,i5,4e15.7)')lsp(m),m,
      &       x(3*m-2)*bohr,x(3*m-1)*bohr,x(3*m)*bohr,tempK
-            TK=TK+tempk
           enddo
           close(11)
-          write(*,*)k,TK/n
-
+          TK=ekin*315775.0d0/(1.5d0*n)
+          write(*,*)k,TK
 
         endif
 
@@ -125,13 +140,14 @@ c-----xyz
 
       end
 
-      subroutine pot(f,dfdx,x,n)
+      subroutine pot(f,dfdx,x,n,hxx,hyy,hzz)
       implicit none
 
       integer n,i,j
       real*8 f,x(3*n),dfdx(3*n)
       real*8 xij,yij,zij,r2,factor
       real*8 sgm,eps,sgm12,sgm6
+      real*8 hxx,hyy,hzz
 !-----atomic unit is used
       parameter(sgm=3.4d0/0.5292d0)
       parameter(eps=120d0/11605d0/27.2116d0)
@@ -145,6 +161,9 @@ c-----potential
           xij=x(3*i-2)-x(3*j-2)
           yij=x(3*i-1)-x(3*j-1)
           zij=x(3*i  )-x(3*j  )
+          xij=xij-hxx*dnint(xij/hxx)
+            yij=yij-hyy*dnint(yij/hyy)
+            zij=zij-hzz*dnint(zij/hzz)
           r2=xij**2+yij**2+zij**2
           f=f+4d0*eps*(sgm12/r2**6-sgm6/r2**3)
         enddo
@@ -161,6 +180,9 @@ c-----force
             xij=x(3*i-2)-x(3*j-2)
             yij=x(3*i-1)-x(3*j-1)
             zij=x(3*i  )-x(3*j  )
+            xij=xij-hxx*dnint(xij/hxx)
+            yij=yij-hyy*dnint(yij/hyy)
+            zij=zij-hzz*dnint(zij/hzz)
             r2=xij**2+yij**2+zij**2
 
             factor=4d0*eps*

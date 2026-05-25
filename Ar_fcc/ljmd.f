@@ -6,7 +6,7 @@
       implicit none
 
       integer nmax
-      parameter(nmax=30000)
+      parameter(nmax=2000)
 
       integer i,j,k,m,n,maxstep,itemp
       real*8 x(3*nmax),v(3*nmax),dfdx(3*nmax)
@@ -44,11 +44,7 @@
       read(10,*)temp,temp,hzz
       close(10)
 
-      filename='out000.chem3d'
       filename2='out000.xyz'
-
-      write(*,*)
-     & ' time(sec)    Kin-eng(a.u.)   pot-eng(a.u.)   total-eng(a.u.)'
 
       k=0
 

@@ -1,19 +1,21 @@
       program Arfcc
       implicit none
-      integer nmax,n,i,j,k,l,inc
+      integer nmax,n,i,j,k,l,inc,m
       real*8 bohr,sgm
       parameter (nmax=30000)
       parameter(bohr=0.5292d0)
       parameter(sgm=3.4d0/bohr) 
 
-      real*8 hxx,hyy,hzz
+      real*8 hxx,hyy,hzz,tempK
       real*8 x(3*nmax),v(3*nmax)
       real*8 xp(4),yp(4),zp(4),cunit
+      tempK=0
 
-      cunit=2.0d0**(1d0/6)*sgm*sqrt(2d0)*0.98
-      hxx=10*cunit
-      hyy=10*cunit
-      hzz=10*cunit
+      cunit=2.0d0**(1d0/6)*sgm*sqrt(2d0)*0.7
+      hxx=7*cunit*bohr
+      hyy=7*cunit*bohr
+      hzz=7*cunit*bohr
+
  
       xp(1)=0d0
       yp(1)=0d0
@@ -30,9 +32,9 @@
 
       
       inc=0
-      do i=0,5
-      do j=0,5
-      do k=0,5
+      do i=0,6
+      do j=0,6
+      do k=0,6
         do l=1,4
           inc=inc+1
           x(3*inc-2)=(xp(l)+dble(i))*cunit
@@ -42,6 +44,7 @@
       enddo
       enddo
       enddo
+
       n=inc
       do i=1,n
         v(3*i-2)= 0d0
@@ -63,6 +66,17 @@
 
       close(10)
 
+      open(11,file='first.xyz')
+
+          write(11,*)n
+          write(11,'(a,3(3e15.7),a,a)')
+     &       'Lattice="',hxx,0.0,0.0,0.0,hyy,0.0,0.0,0.0,hzz,'" ',
+     &       'Properties=species:S:1:id:I:1:pos:R:3:tempK:R:1'
+           do m=1,n
+            write(11,'(a2,i5,4e15.7)') 'Ar',m,
+     &       x(3*m-2)*bohr,x(3*m-1)*bohr,x(3*m)*bohr,tempK
+          enddo
+          close(11)
       end
 
 
