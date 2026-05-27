@@ -1,22 +1,23 @@
       program Arfcc
       implicit none
-      integer nmax,n,i,j,k,l,inc,m
+      integer nmax,n,i,j,k,l,inc,m,bs
       real*8 bohr,sgm
       parameter (nmax=30000)
       parameter(bohr=0.5292d0)
       parameter(sgm=3.4d0/bohr) 
-
       real*8 hxx,hyy,hzz,tempK
       real*8 x(3*nmax),v(3*nmax)
       real*8 xp(4),yp(4),zp(4),cunit
       tempK=0
 
       cunit=2.0d0**(1d0/6)*sgm*sqrt(2d0)*0.98
-
       write(*,*)cunit
-      hxx=6*cunit*bohr
-      hyy=6*cunit*bohr
-      hzz=6*cunit*bohr
+! boxsize
+      bs=7
+! boxsize        
+      hxx=15*cunit*bohr
+      hyy=15*cunit*bohr
+      hzz=15*cunit*bohr
 
  
       xp(1)=0d0
@@ -34,9 +35,9 @@
 
       
       inc=0
-      do i=0,5
-      do j=0,5
-      do k=0,5
+      do i=2,7
+      do j=2,7
+      do k=2,7
         do l=1,4
           inc=inc+1
           x(3*inc-2)=(xp(l)+dble(i))*cunit
@@ -46,8 +47,9 @@
       enddo
       enddo
       enddo
-
       n=inc
+
+! 初速度      
       do i=1,n
         v(3*i-2)= 0d0
         v(3*i-1)= 0d0

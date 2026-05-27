@@ -8,18 +8,21 @@
       parameter(nmax=2000)
       integer i,j,k,m,n,maxstep,itemp
       real*8 x(3*nmax),v(3*nmax),dfdx(3*nmax)
-      real*8 f,ekin,totalenergy,dt
+      real*8 f,ekin,totalenergy,dt,cv
       real*8 hxx,hyy,hzz,temp,dummy,tempK
-      real*8 amass,bohr,hx,hy,hz,TK
+      real*8 amass,bohr,hx,hy,hz,Treg,Tk,sv2
       character*2 lsp(nmax)
       character*40 filename2
 
       parameter(amass=40d0*1836d0)
       parameter(bohr=0.5292d0)
-
+! time_step
       dt=41d0*5d0
 ! time_step      
       maxstep=2000
+! 目標温度、揺らぎの割合
+      Treg=300d0
+      cv=0.05
 
       open(10,file='init.dat')
       read(10,*)n
@@ -47,7 +50,6 @@
       do i=1,maxstep
         do j=1,3*n
           v(j)=v(j)+(dt/2d0)*(-dfdx(j)/amass)
-!          v(j)=v(j)*1.005
         enddo
 ! 周期境界条件
         do j=1,n
@@ -72,9 +74,18 @@
         enddo  
 
         call pot(f,dfdx,x,n,hxx,hyy,hzz)
+        sv2=0.d0
         do j=1,3*n
           v(j)=v(j)+(dt/2d0)*(-dfdx(j)/amass)
+          sv2=sv2+v(j)**2
         enddo
+        Tk=0.5d0*amass*sv2*2d0/(3d0*dble(n))*
+     &  27.2116*11605d0
+        if (abs((Tk-Treg)/Treg)>cv) then
+          do j=1,3*n
+            v(j)=v(j)*sqrt(Treg/Tk)
+          enddo
+        endif
 
         ekin=0d0
         do j=1,3*n
@@ -102,8 +113,7 @@
      &       x(3*m-2)*bohr,x(3*m-1)*bohr,x(3*m)*bohr,tempK
           enddo
           close(11)
-          TK=ekin*315775.0d0/(1.5d0*n)
-          write(*,*)k,TK
+          write(*,*)k,Tk
         endif
       enddo
 

@@ -2,24 +2,27 @@
 !
 !   Dynamics of n atoms interacting with the Lennard-Jones potential.
 !
-      program md_lj_pbc
+      program md_lj_T
       implicit none
       integer nmax
       parameter(nmax=2000)
       integer i,j,k,m,n,maxstep,itemp
       real*8 x(3*nmax),v(3*nmax),dfdx(3*nmax)
-      real*8 f,ekin,totalenergy,dt
+      real*8 f,ekin,totalenergy,dt,cv
       real*8 hxx,hyy,hzz,temp,dummy,tempK
-      real*8 amass,bohr,hx,hy,hz,TK
+      real*8 amass,bohr,hx,hy,hz,Treg,Tk,sv2
       character*2 lsp(nmax)
       character*40 filename2
 
       parameter(amass=40d0*1836d0)
       parameter(bohr=0.5292d0)
-
+! time_step
       dt=41d0*5d0
 ! time_step      
       maxstep=2000
+! 目標温度、揺らぎの割合
+      Treg=80d0
+      cv=0.05
 
       open(10,file='init.dat')
       read(10,*)n
@@ -43,38 +46,30 @@
       filename2='out000.xyz'
       k=0
 
-      call pot(f,dfdx,x,n,hxx,hyy,hzz)
+      call pot(f,dfdx,x,n)
       do i=1,maxstep
         do j=1,3*n
           v(j)=v(j)+(dt/2d0)*(-dfdx(j)/amass)
-!          v(j)=v(j)*1.005
         enddo
-! 周期境界条件
-        do j=1,n
+      do j=1,n
           x(3*j-2)=x(3*j-2)+dt*v(3*j-2)
-          if (x(3*j-2).gt.hxx) then
-            x(3*j-2)=x(3*j-2)-hxx
-          else if (x(3*j-2).lt.0d0) then
-            x(3*j-2)=x(3*j-2)+hxx
-          endif 
           x(3*j-1)=x(3*j-1)+dt*v(3*j-1)
-          if (x(3*j-1).gt.hyy) then
-            x(3*j-1)=x(3*j-1)-hyy
-          else if (x(3*j-1).lt.0d0) then
-            x(3*j-1)=x(3*j-1)+hyy
-          endif
           x(3*j  )=x(3*j  )+dt*v(3*j  )
-          if (x(3*j  ).gt.hzz) then
-            x(3*j  )=x(3*j  )-hzz
-          else if (x(3*j  ).lt.0d0) then
-            x(3*j  )=x(3*j  )+hzz
-          endif
-        enddo  
+      enddo
 
-        call pot(f,dfdx,x,n,hxx,hyy,hzz)
+        call pot(f,dfdx,x,n)
+        sv2=0.d0
         do j=1,3*n
           v(j)=v(j)+(dt/2d0)*(-dfdx(j)/amass)
+          sv2=sv2+v(j)**2
         enddo
+        Tk=0.5d0*amass*sv2*2d0/(3d0*dble(n))*
+     &  27.2116*11605d0
+        if (abs((Tk-Treg)/Treg)>cv) then
+          do j=1,3*n
+            v(j)=v(j)*sqrt(Treg/Tk)
+          enddo
+        endif
 
         ekin=0d0
         do j=1,3*n
@@ -102,21 +97,19 @@
      &       x(3*m-2)*bohr,x(3*m-1)*bohr,x(3*m)*bohr,tempK
           enddo
           close(11)
-          TK=ekin*315775.0d0/(1.5d0*n)
-          write(*,*)k,TK
+          write(*,*)k,Tk
         endif
       enddo
 
-      endprogram md_lj_pbc
+      endprogram md_lj_T
 
-      subroutine pot(f,dfdx,x,n,hxx,hyy,hzz)
+      subroutine pot(f,dfdx,x,n)
       implicit none
 
       integer n,i,j
       real*8 f,x(3*n),dfdx(3*n)
       real*8 xij,yij,zij,r2,factor
       real*8 sgm,eps,sgm12,sgm6
-      real*8 hxx,hyy,hzz
       parameter(sgm=3.4d0/0.5292d0)
       parameter(eps=120d0/11605d0/27.2116d0)
       parameter(sgm12=sgm**12,sgm6=sgm**6)
@@ -128,9 +121,6 @@ c-----potential
           xij=x(3*i-2)-x(3*j-2)
           yij=x(3*i-1)-x(3*j-1)
           zij=x(3*i  )-x(3*j  )
-          xij=xij-hxx*dnint(xij/hxx)
-          yij=yij-hyy*dnint(yij/hyy)
-          zij=zij-hzz*dnint(zij/hzz)
           r2=xij**2+yij**2+zij**2
           f=f+4d0*eps*(sgm12/r2**6-sgm6/r2**3)
         enddo
@@ -147,9 +137,6 @@ c-----force
             xij=x(3*i-2)-x(3*j-2)
             yij=x(3*i-1)-x(3*j-1)
             zij=x(3*i  )-x(3*j  )
-            xij=xij-hxx*dnint(xij/hxx)
-            yij=yij-hyy*dnint(yij/hyy)
-            zij=zij-hzz*dnint(zij/hzz)
             r2=xij**2+yij**2+zij**2
             factor=4d0*eps*
      &      (-12d0*sgm12/r2**7+6d0*sgm6/r2**4)
