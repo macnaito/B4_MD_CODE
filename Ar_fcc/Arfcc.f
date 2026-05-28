@@ -10,14 +10,14 @@
       real*8 xp(4),yp(4),zp(4),cunit
       tempK=0
 
-      cunit=2.0d0**(1d0/6)*sgm*sqrt(2d0)*0.98
+      cunit=2.0d0**(1d0/6)*sgm*sqrt(2d0)
       write(*,*)cunit
 ! boxsize
       bs=7
 ! boxsize        
-      hxx=15*cunit*bohr
-      hyy=15*cunit*bohr
-      hzz=15*cunit*bohr
+      hxx=bs*cunit*bohr
+      hyy=bs*cunit*bohr
+      hzz=bs*cunit*bohr
 
  
       xp(1)=0d0
@@ -35,9 +35,9 @@
 
       
       inc=0
-      do i=2,7
-      do j=2,7
-      do k=2,7
+      do i=0,bs-1
+      do j=0,bs-1
+      do k=0,bs-1
         do l=1,4
           inc=inc+1
           x(3*inc-2)=(xp(l)+dble(i))*cunit
@@ -50,11 +50,17 @@
       n=inc
 
 ! 初速度      
-      do i=1,n
-        v(3*i-2)= 0d0
-        v(3*i-1)= 0d0
-        v(3*i  )= 0d0
+!      do i=1,n
+!        v(3*i-2)= 0d0
+!        v(3*i-1)= 0d0
+!        v(3*i  )= 0d0
+!      enddo
+      open(10,file='final.dat')
+      do i=1,3*n
+            read(10,*)v(i)
       enddo
+      close(10)
+
 
       
       open(10,file='init.dat')
@@ -82,9 +88,6 @@
           enddo
           close(11)
       end
-
-
-
 
 
 

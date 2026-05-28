@@ -1,7 +1,6 @@
 !   << 3-dimension >>
 !
 !   Dynamics of n atoms interacting with the Lennard-Jones potential.
-!
       program md_lj_pbc
       implicit none
       integer nmax
@@ -19,9 +18,9 @@
 ! time_step
       dt=41d0*5d0
 ! time_step      
-      maxstep=2000
+      maxstep=200
 ! 目標温度、揺らぎの割合
-      Treg=300d0
+      Treg=200d0
       cv=0.05
 
       open(10,file='init.dat')
@@ -97,7 +96,7 @@
 !-------Note: 1 atomic unit of time = 2.42d-17 sec
 !        write(*,*)dt*i*2.42d-17,ekin,f,totalenergy
 
-        if(mod(i,100).eq.0)then
+        if(mod(i,10).eq.0)then
           k=k+1
           write(filename2(4:6),'(i3.3)')k
 
