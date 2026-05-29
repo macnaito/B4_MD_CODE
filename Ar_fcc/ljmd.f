@@ -25,7 +25,7 @@
 !-----time step in atomic unit.
       dt=41d0*5d0
 !-----total number of steps
-      maxstep=2000
+      maxstep=1000
 
 !-----read the initial atomic positions and velocities
       open(10,file='init.dat')

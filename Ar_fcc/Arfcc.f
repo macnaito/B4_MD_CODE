@@ -1,17 +1,16 @@
       program Arfcc
       implicit none
       integer nmax,n,i,j,k,l,inc,m,bs
-      real*8 bohr,sgm
+      real*8 bohr,sgm,amass,ekin,Tk
       parameter (nmax=30000)
       parameter(bohr=0.5292d0)
       parameter(sgm=3.4d0/bohr) 
+      parameter(amass=40d0*1836d0)
       real*8 hxx,hyy,hzz,tempK
       real*8 x(3*nmax),v(3*nmax)
       real*8 xp(4),yp(4),zp(4),cunit
-      tempK=0
 
       cunit=2.0d0**(1d0/6)*sgm*sqrt(2d0)
-      write(*,*)cunit
 ! boxsize
       bs=7
 ! boxsize        
@@ -55,11 +54,18 @@
 !        v(3*i-1)= 0d0
 !        v(3*i  )= 0d0
 !      enddo
-      open(10,file='final.dat')
+      open(10,file='final100.dat')
       do i=1,3*n
             read(10,*)v(i)
       enddo
       close(10)
+      ekin=0d0
+      do j=1,3*n
+          ekin=ekin+0.5d0*amass*v(j)**2
+      enddo
+      Tk=ekin*2d0/(3d0*dble(n))*
+     &    27.2116*11605d0
+      write(*,*) Tk
 
 
       
@@ -83,6 +89,8 @@
      &       'Lattice="',hxx,0.0,0.0,0.0,hyy,0.0,0.0,0.0,hzz,'" ',
      &       'Properties=species:S:1:id:I:1:pos:R:3:tempK:R:1'
            do m=1,n
+            tempK=amass/2*(v(3*m-2)**2+v(3*m-1)**2+v(3*m)**2)
+     &        *27.2116*11605d0
             write(11,'(a2,i5,4e15.7)') 'Ar',m,
      &       x(3*m-2)*bohr,x(3*m-1)*bohr,x(3*m)*bohr,tempK
           enddo

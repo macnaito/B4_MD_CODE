@@ -15,14 +15,15 @@
       real*8 Q,tau,Treg,xi,gkbt
       parameter(amass=40d0*1836d0)
       parameter(bohr=0.5292d0)
+! maxstep
+      parameter(maxstep=2000)
+      real*8 T(maxstep)
       ! time_step
       dt=41d0
       !目標温度
-      Treg=100d0
+      Treg=70d0
 
-! time_step      
-      maxstep=1000
-! 目標温度、揺らぎの割合
+      
 
       open(10,file='init.dat')
        read(10,*)n
@@ -47,22 +48,20 @@
       k=0
       Tk=0.d0
       xi=0.d0
+      ! time_step
+      dt=41d0
+!     目標温度
+      Treg=100d0
       tau=100d0*dt
       gkbt=(3.d0*dble(n))*Treg/(27.2116*11605d0)
       Q=gkbt*tau**2
 
       call pot(f,dfdx,x,n,hxx,hyy,hzz)
       do i=1,maxstep
-        do j=1,n
-          v(3*j-2)=v(3*j-2)+(dt/2d0)*
-     &    ((-dfdx(3*j-2)/amass)-xi*v(3*j-2)) 
-          v(3*j-1)=v(3*j-1)+(dt/2d0)*
-     &    ((-dfdx(3*j-1)/amass)-xi*v(3*j-1))     
-          v(3*j  )=v(3*j  )+(dt/2d0)*
-     &    ((-dfdx(3*j  )/amass)-xi*v(3*j  ))
+        do j=1,3*n
+          v(j)=v(j)+(dt/2d0)*((-dfdx(j)/amass)
+     &    -xi*v(j))
         enddo
-
-
 
 ! 周期境界条件
         do j=1,n
@@ -106,13 +105,15 @@
         enddo
         Tk=ekin*2d0/(3d0*dble(n))*
      &    27.2116*11605d0
+        T(i)=Tk
+        write(*,*) Tk,xi
         
 
 
 !-------Note: 1 atomic unit of time = 2.42d-17 sec
 !        write(*,*)dt*i*2.42d-17,ekin,f,totalenergy
 
-        if(mod(i,10).eq.0)then
+        if(mod(i,100).eq.0)then
           k=k+1
           write(filename2(4:6),'(i3.3)')k
 
@@ -132,11 +133,17 @@
         endif
 
       enddo
-!      open (10,file='final.dat')
-!       do i=1,3*n
-!        write(10,*) v(i)
-!       enddo
-!      close(10)
+      open (10,file='final100.dat')
+       do i=1,3*n
+        write(10,*) v(i)
+       enddo
+      close(10)
+
+      open (12,file='temple.dat')
+      do i=1,maxstep
+        write(12,*) T(i)
+      enddo
+      close(12)
 
           
 

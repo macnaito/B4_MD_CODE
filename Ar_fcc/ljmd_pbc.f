@@ -19,7 +19,7 @@
 
       dt=41d0*5d0
 ! time_step      
-      maxstep=2000
+      maxstep=1000
 
       open(10,file='init.dat')
       read(10,*)n
@@ -47,7 +47,6 @@
       do i=1,maxstep
         do j=1,3*n
           v(j)=v(j)+(dt/2d0)*(-dfdx(j)/amass)
-!          v(j)=v(j)*1.005
         enddo
 ! 周期境界条件
         do j=1,n
@@ -80,13 +79,16 @@
         do j=1,3*n
           ekin=ekin+0.5d0*amass*v(j)**2
         enddo
+        Tk=ekin*2d0/(3d0*dble(n))*
+     &    27.2116*11605d0
+        write(*,*) Tk
 
         totalenergy=f+ekin
 
 !-------Note: 1 atomic unit of time = 2.42d-17 sec
 !        write(*,*)dt*i*2.42d-17,ekin,f,totalenergy
 
-        if(mod(i,100).eq.0)then
+        if(mod(i,50).eq.0)then
           k=k+1
           write(filename2(4:6),'(i3.3)')k
 
