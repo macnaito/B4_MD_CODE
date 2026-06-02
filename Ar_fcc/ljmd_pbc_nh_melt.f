@@ -16,7 +16,7 @@
       parameter(amass=40d0*1836d0)
       parameter(bohr=0.5292d0)
 ! maxstep
-      parameter(maxstep=12000)
+      parameter(maxstep=10000)
       real*8 T(maxstep)
 
 
@@ -47,7 +47,7 @@
       dt=41d0
 !     目標温度
 !      Treg=75d0
-      tau=88d0*dt
+      tau=100d0*dt
 !      gkbt=(3.d0*dble(n))*Treg/(27.2116*11605d0)
 !      Q=gkbt*tau**2
 
@@ -60,11 +60,12 @@
         else if (i>=2000.and.i<4000)then
          Treg=100d0
          gkbt=(3.d0*dble(n))*Treg/(27.2116*11605d0)
+         tau=80d0*dt
          Q=gkbt*tau**2
         else if (i>=4000.and.i<6000) then
          Treg=125d0
          gkbt=(3.d0*dble(n))*Treg/(27.2116*11605d0)
-         tau=70d0*dt
+         tau=74d0*dt
          Q=gkbt*tau**2
         else if (i>=6000.and.i<8000) then
          Treg=150d0
@@ -161,16 +162,6 @@
         endif
 
       enddo
-!      open (10,file='finalXmelt.dat')
-!       do i=1,3*n
-!        write(10,*) x(i)
-!       enddo
-!      close(10)
-!      open (11,file='finalTmelt.dat')
-!       do i=1,3*n
-!        write(11,*) v(i)
-!       enddo
-!      close(11)
 
       open (12,file='t.dat')
       do i=1,maxstep

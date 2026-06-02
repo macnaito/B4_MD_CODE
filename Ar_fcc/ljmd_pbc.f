@@ -4,8 +4,8 @@
 !
       program md_lj_pbc
       implicit none
-      integer nmax
-      parameter(nmax=2000)
+      integer nmax,rec
+      parameter(nmax=5000)
       integer i,j,k,m,n,maxstep,itemp
       real*8 x(3*nmax),v(3*nmax),dfdx(3*nmax)
       real*8 f,ekin,totalenergy,dt
@@ -17,9 +17,10 @@
       parameter(amass=40d0*1836d0)
       parameter(bohr=0.5292d0)
 ! time_step      
-      parameter(maxstep=2000)
+      parameter(maxstep=1000)
       real*8 T(maxstep)
-      dt=41d0
+      real*8 poten(maxstep)
+      dt=41d0*5d0
 
       open(10,file='init.dat')
       read(10,*)n
@@ -83,8 +84,10 @@
      &    27.2116*11605d0
         write(*,*) Tk
         T(i)=Tk
+        
 
         totalenergy=f+ekin
+        poten(i)=totalenergy
 
 !-------Note: 1 atomic unit of time = 2.42d-17 sec
 !        write(*,*)dt*i*2.42d-17,ekin,f,totalenergy
@@ -110,12 +113,27 @@
         endif
       enddo
 
-!      open (10,file='final100.dat')
-!       do i=1,3*n
-!        write(10,*) v(i)
-!       enddo
-!      close(10)
       open (12,file='temple.dat')
+      do i=1,maxstep
+        write(12,*) T(i),poten(i)
+      enddo
+      close(12)
+      
+      rec=0
+      if (rec==1) then
+       open (10,file='final50x.dat')
+        do i=1,3*n
+         write(10,*) x(i)
+        enddo
+       close(10)
+       open (10,file='final50v.dat')
+        do i=1,3*n
+         write(10,*) v(i)
+        enddo
+       close(10)
+      endif
+
+      open (12,file='t.dat')
       do i=1,maxstep
         write(12,*) T(i)
       enddo

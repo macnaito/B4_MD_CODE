@@ -1,6 +1,6 @@
       program Arfcc
       implicit none
-      integer nmax,n,i,j,k,l,inc,m,bs
+      integer nmax,n,i,j,k,l,inc,m,bs,rec
       real*8 bohr,sgm,amass,ekin,Tk
       parameter (nmax=30000)
       parameter(bohr=0.5292d0)
@@ -11,9 +11,10 @@
       real*8 xp(4),yp(4),zp(4),cunit
 
       cunit=2.0d0**(1d0/6)*sgm*sqrt(2d0)
+      rec=0
 
 ! boxsize
-      bs=7
+      bs=8
 ! boxsize        
       hxx=bs*cunit*bohr
       hyy=bs*cunit*bohr
@@ -48,28 +49,28 @@
       enddo
       enddo
       n=inc
-
-!      open(10,file='final50x.dat')
-!      do i=1,3*n
-!            read(10,*)x(i)
-!      enddo
-!      close(10)
-
-
 ! 初速度      
       do i=1,n
         v(3*i-2)= 0d0
         v(3*i-1)= 0d0
         v(3*i  )= 0d0
       enddo
-!      open(11,file='final50v.dat')
-!      do i=1,3*n
-!            read(11,*)v(i)
-!      enddo
-!      close(11)
-!      do i=1,3*n
-!            v(i)=v(i)*((50d0/53.419d0)**(1d0/2d0))
-!      enddo
+      rec=0
+      if (rec==1) then
+       open(10,file='final50x.dat')
+       do i=1,3*n
+            read(10,*)x(i)
+       enddo
+       close(10)
+       open(11,file='final50v.dat')
+       do i=1,3*n
+            read(11,*)v(i)
+      enddo
+       close(11)
+       do i=1,3*n
+            v(i)=v(i)*((50d0/56.8d0)**(1d0/2d0))
+       enddo
+      end if
 
       ekin=0d0
       do j=1,3*n

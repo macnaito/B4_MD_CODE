@@ -3,8 +3,8 @@
 !   Dynamics of n atoms interacting with the Lennard-Jones potential.
       program md_lj_pbc
       implicit none
-      integer nmax
-      parameter(nmax=2000)
+      integer nmax,rec
+      parameter(nmax=5000)
       integer i,j,k,m,n,maxstep,itemp
       real*8 x(3*nmax),v(3*nmax),dfdx(3*nmax)
       real*8 f,ekin,dt
@@ -46,11 +46,12 @@
       k=0
       Tk=0.d0
       xi=0.d0
+      rec=0
 ! time_step
       dt=41d0
 ! 目標温度
-      Treg=175d0
-      tau=60d0*dt
+      Treg=50d0
+      tau=100d0*dt
       gkbt=(3.d0*dble(n))*Treg/(27.2116*11605d0)
       Q=gkbt*tau**2
 
@@ -116,7 +117,7 @@
 !-------Note: 1 atomic unit of time = 2.42d-17 sec
 !        write(*,*)dt*i*2.42d-17,ekin,f,totalenergy
 
-        if(mod(i,200).eq.0)then
+        if(mod(i,50).eq.0)then
           k=k+1
           write(filename2(4:6),'(i3.3)')k
 
@@ -132,26 +133,28 @@
      &       x(3*m-2)*bohr,x(3*m-1)*bohr,x(3*m)*bohr,tempK
           enddo
           close(11)
-!          write(*,*)k,Tk
         endif
       enddo
 
-!      open (10,file='final150x.dat')
-!       do i=1,3*n
-!        write(10,*) x(i)
-!       enddo
-!      close(10)
-!      open (10,file='final150v.dat')
-!       do i=1,3*n
-!        write(10,*) v(i)
-!       enddo
-!      close(10)
+      if (rec==1) then
+       open (10,file='final50x.dat')
+        do i=1,3*n
+         write(10,*) x(i)
+        enddo
+       close(10)
+       open (10,file='final50v.dat')
+        do i=1,3*n
+         write(10,*) v(i),xii(i)+50.d0
+        enddo
+       close(10)
+      endif
 
       open (12,file='t.dat')
       do i=1,maxstep
-        write(12,*) T(i),xii(i)
+        write(12,*) T(i),xii(i)+50.d0
       enddo
       close(12)
+    
 
           
 
