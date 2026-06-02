@@ -16,10 +16,10 @@
 
       parameter(amass=40d0*1836d0)
       parameter(bohr=0.5292d0)
-
-      dt=41d0*5d0
 ! time_step      
-      maxstep=1000
+      parameter(maxstep=2000)
+      real*8 T(maxstep)
+      dt=41d0
 
       open(10,file='init.dat')
       read(10,*)n
@@ -82,6 +82,7 @@
         Tk=ekin*2d0/(3d0*dble(n))*
      &    27.2116*11605d0
         write(*,*) Tk
+        T(i)=Tk
 
         totalenergy=f+ekin
 
@@ -108,6 +109,17 @@
           write(*,*)k,TK
         endif
       enddo
+
+!      open (10,file='final100.dat')
+!       do i=1,3*n
+!        write(10,*) v(i)
+!       enddo
+!      close(10)
+      open (12,file='temple.dat')
+      do i=1,maxstep
+        write(12,*) T(i)
+      enddo
+      close(12)
 
       endprogram md_lj_pbc
 

@@ -16,14 +16,12 @@
       parameter(amass=40d0*1836d0)
       parameter(bohr=0.5292d0)
 ! maxstep
-      parameter(maxstep=2000)
+      parameter(maxstep=1000)
       real*8 T(maxstep)
-      ! time_step
-      dt=41d0
-      !目標温度
-      Treg=70d0
+      real*8 undo(maxstep)
+      real*8 poten(maxstep)
+      real*8 xii(maxstep)
 
-      
 
       open(10,file='init.dat')
        read(10,*)n
@@ -48,11 +46,11 @@
       k=0
       Tk=0.d0
       xi=0.d0
-      ! time_step
+! time_step
       dt=41d0
-!     目標温度
-      Treg=100d0
-      tau=100d0*dt
+! 目標温度
+      Treg=175d0
+      tau=60d0*dt
       gkbt=(3.d0*dble(n))*Treg/(27.2116*11605d0)
       Q=gkbt*tau**2
 
@@ -90,7 +88,7 @@
           ekin=ekin+0.5d0*amass*v(j)**2
         enddo
 
-        xi=xi+dt*(2.d0*ekin-gkbt)/Q
+        xi=xi+0.5d0*dt*(2.d0*ekin-gkbt)/Q
 
         call pot(f,dfdx,x,n,hxx,hyy,hzz)
 
@@ -103,9 +101,14 @@
         do j=1,3*n
           ekin=ekin+0.5d0*amass*v(j)**2
         enddo
+        xi=xi+0.5d0*dt*(2.d0*ekin-gkbt)/Q
+
         Tk=ekin*2d0/(3d0*dble(n))*
      &    27.2116*11605d0
         T(i)=Tk
+        undo(i)=ekin
+        poten(i)=f
+        xii(i)=xi
         write(*,*) Tk,xi
         
 
@@ -113,7 +116,7 @@
 !-------Note: 1 atomic unit of time = 2.42d-17 sec
 !        write(*,*)dt*i*2.42d-17,ekin,f,totalenergy
 
-        if(mod(i,100).eq.0)then
+        if(mod(i,200).eq.0)then
           k=k+1
           write(filename2(4:6),'(i3.3)')k
 
@@ -129,24 +132,28 @@
      &       x(3*m-2)*bohr,x(3*m-1)*bohr,x(3*m)*bohr,tempK
           enddo
           close(11)
-          write(*,*)k,Tk
+!          write(*,*)k,Tk
         endif
-
       enddo
-      open (10,file='final100.dat')
-       do i=1,3*n
-        write(10,*) v(i)
-       enddo
-      close(10)
 
-      open (12,file='temple.dat')
+!      open (10,file='final150x.dat')
+!       do i=1,3*n
+!        write(10,*) x(i)
+!       enddo
+!      close(10)
+!      open (10,file='final150v.dat')
+!       do i=1,3*n
+!        write(10,*) v(i)
+!       enddo
+!      close(10)
+
+      open (12,file='t.dat')
       do i=1,maxstep
-        write(12,*) T(i)
+        write(12,*) T(i),xii(i)
       enddo
       close(12)
 
           
-
 
       
 
@@ -202,7 +209,6 @@ c-----force
           endif
         enddo
       enddo
-      close(12)
 
       return
       end

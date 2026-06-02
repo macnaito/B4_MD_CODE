@@ -11,6 +11,7 @@
       real*8 xp(4),yp(4),zp(4),cunit
 
       cunit=2.0d0**(1d0/6)*sgm*sqrt(2d0)
+
 ! boxsize
       bs=7
 ! boxsize        
@@ -48,17 +49,28 @@
       enddo
       n=inc
 
-! 初速度      
-!      do i=1,n
-!        v(3*i-2)= 0d0
-!        v(3*i-1)= 0d0
-!        v(3*i  )= 0d0
+!      open(10,file='final50x.dat')
+!      do i=1,3*n
+!            read(10,*)x(i)
 !      enddo
-      open(10,file='final100.dat')
-      do i=1,3*n
-            read(10,*)v(i)
+!      close(10)
+
+
+! 初速度      
+      do i=1,n
+        v(3*i-2)= 0d0
+        v(3*i-1)= 0d0
+        v(3*i  )= 0d0
       enddo
-      close(10)
+!      open(11,file='final50v.dat')
+!      do i=1,3*n
+!            read(11,*)v(i)
+!      enddo
+!      close(11)
+!      do i=1,3*n
+!            v(i)=v(i)*((50d0/53.419d0)**(1d0/2d0))
+!      enddo
+
       ekin=0d0
       do j=1,3*n
           ekin=ekin+0.5d0*amass*v(j)**2
