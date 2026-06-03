@@ -14,7 +14,7 @@
       rec=0
 
 ! boxsize
-      bs=8
+      bs=7
 ! boxsize        
       hxx=bs*cunit*bohr
       hyy=bs*cunit*bohr

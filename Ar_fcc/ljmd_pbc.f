@@ -20,7 +20,7 @@
       parameter(maxstep=1000)
       real*8 T(maxstep)
       real*8 poten(maxstep)
-      dt=41d0*5d0
+      dt=41d0
 
       open(10,file='init.dat')
       read(10,*)n
