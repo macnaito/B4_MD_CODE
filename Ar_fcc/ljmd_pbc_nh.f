@@ -4,7 +4,7 @@
       program md_lj_pbc
       implicit none
       integer nmax,rec
-      parameter(nmax=5000)
+      parameter(nmax=3000)
       integer i,j,k,m,n,maxstep,itemp
       real*8 x(3*nmax),v(3*nmax),dfdx(3*nmax)
       real*8 f,ekin,dt
@@ -18,8 +18,6 @@
 ! maxstep
       parameter(maxstep=2000)
       real*8 T(maxstep)
-      real*8 poten(maxstep)
-      real*8 xii(maxstep)
 
 !ファイルの読み込み
       open(10,file='init.dat')
@@ -92,7 +90,6 @@
         enddo  
 
         call pot(f,dfdx,x,n,hxx,hyy,hzz)
-        poten(i)=f
 
         xi=xi+0.5d0*dt*(2.d0*ekin-gkbt)/Q
 
@@ -107,7 +104,6 @@
         Tk=ekin*2d0/(3d0*dble(n))*
      &    27.2116*11605d0
         T(i)=Tk
-        xii(i)=xi
         write(*,*) Tk
         
 
@@ -149,7 +145,7 @@
 
       open (12,file='t.dat')
       do i=1,maxstep
-        write(12,*) T(i),xii(i)*1000000,poten(i)
+        write(12,*) T(i)
       enddo
       close(12)
     
@@ -214,6 +210,5 @@ c-----force
           endif
         enddo
       enddo
-
       return
       end

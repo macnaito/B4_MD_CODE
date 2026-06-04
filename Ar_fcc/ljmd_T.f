@@ -5,7 +5,7 @@
       program md_lj_T
       implicit none
       integer nmax
-      parameter(nmax=2000)
+      parameter(nmax=5000)
       integer i,j,k,m,n,maxstep,itemp
       real*8 x(3*nmax),v(3*nmax),dfdx(3*nmax)
       real*8 f,ekin,totalenergy,dt,cv

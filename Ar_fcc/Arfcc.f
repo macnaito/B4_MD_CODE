@@ -14,7 +14,7 @@
       rec=0
 
 ! boxsize
-      bs=7
+      bs=8
 ! boxsize        
       hxx=bs*cunit*bohr
       hyy=bs*cunit*bohr
@@ -68,7 +68,7 @@
       enddo
        close(11)
        do i=1,3*n
-            v(i)=v(i)*((50d0/56.8d0)**(1d0/2d0))
+            v(i)=v(i)*((50d0/56.803d0)**(1d0/2d0))
        enddo
       end if
 

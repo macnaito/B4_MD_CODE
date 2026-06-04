@@ -4,7 +4,7 @@
       program md_lj_pbc_heat
       implicit none
       integer nmax
-      parameter(nmax=2000)
+      parameter(nmax=3000)
       integer i,j,k,m,n,maxstep,itemp
       real*8 x(3*nmax),v(3*nmax),dfdx(3*nmax)
       real*8 f,ekin,dt
@@ -16,11 +16,11 @@
       parameter(amass=40d0*1836d0)
       parameter(bohr=0.5292d0)
 ! maxstep
-      parameter(maxstep=10000)
+      parameter(maxstep=8000)
       real*8 T(maxstep)
       real*8 Treg(maxstep)
 
-
+!ファイルの読み込み
       open(10,file='init.dat')
        read(10,*)n
        do i=1,n
@@ -39,26 +39,30 @@
        hyy=hy/bohr
        hzz=hz/bohr
       close(10)
-
+      ekin=0d0
+      do j=1,3*n
+          ekin=ekin+0.5d0*amass*v(j)**2
+      enddo
       filename2='out000.xyz'
       k=0
       Tk=0.d0
       xi=0.d0
-      ! time_step
+! time_step
       dt=41d0
-
+      tau=85d0*dt
 
       call pot(f,dfdx,x,n,hxx,hyy,hzz)
       do i=1,maxstep
         Treg(i)=50d0+200d0*dble(i)/maxstep
-        tau=300d0*dt
         gkbt=(3.d0*dble(n))*Treg(i)/(27.2116*11605d0)
         Q=gkbt*tau**2
+        xi=xi+0.5d0*dt*(2.d0*ekin-gkbt)/Q
 
-
+        ekin=0d0
         do j=1,3*n
           v(j)=v(j)+(dt/2d0)*((-dfdx(j)/amass)
-     &    -xi*v(j))
+     &          -xi*v(j))
+          ekin=ekin+0.5d0*amass*v(j)**2
         enddo
 
 ! 周期境界条件
@@ -83,33 +87,21 @@
           endif
         enddo  
 
-        ekin=0d0
-        do j=1,3*n
-          ekin=ekin+0.5d0*amass*v(j)**2
-        enddo
-
-        xi=xi+0.50d0*dt*(2.d0*ekin-gkbt)/Q
-
+!callpot
         call pot(f,dfdx,x,n,hxx,hyy,hzz)
-
-        do j=1,3*n
-          v(j)=v(j)+(dt/2d0)*
-     &     (-dfdx(j)/amass-xi*v(j))
-        enddo
+        xi=xi+0.50d0*dt*(2.d0*ekin-gkbt)/Q
 
         ekin=0d0
         do j=1,3*n
-          ekin=ekin+0.5d0*amass*v(j)**2
+         v(j)=(v(j)-dt*0.5d0*dfdx(j)/amass)
+     &     /(1+dt*0.5d0*xi)
+         ekin=ekin+0.5d0*amass*v(j)**2 
         enddo
-        xi=xi+0.50d0*dt*(2.d0*ekin-gkbt)/Q
 
         Tk=ekin*2d0/(3d0*dble(n))*
      &    27.2116*11605d0
         T(i)=Tk
-        write(*,*)i,Treg(i),Tk
-        
-
-
+        write(*,*)Tk
 !-------Note: 1 atomic unit of time = 2.42d-17 sec
 !        write(*,*)dt*i*2.42d-17,ekin,f,totalenergy
 
@@ -131,7 +123,6 @@
           close(11)
           write(*,*)k,Tk
         endif
-
       enddo
 
       open (12,file='t.dat')
@@ -139,11 +130,6 @@
         write(12,*) T(i),Treg(i)
       enddo
       close(12)
-
-          
-
-
-      
 
       endprogram md_lj_pbc_heat
 
@@ -154,11 +140,11 @@
       real*8 f,x(3*n),dfdx(3*n)
       real*8 xij,yij,zij,r2,factor
       real*8 sgm,eps,sgm12,sgm6
-      real*8 hxx,hyy,hzz
+      real*8 hxx,hyy,hzz,cutoff
       parameter(sgm=3.4d0/0.5292d0)
       parameter(eps=120d0/11605d0/27.2116d0)
       parameter(sgm12=sgm**12,sgm6=sgm**6)
-
+      parameter(cutoff=2.5d0*sgm)
       f=0d0
 c-----potential
       do i=1,n-1
@@ -170,7 +156,9 @@ c-----potential
           yij=yij-hyy*dnint(yij/hyy)
           zij=zij-hzz*dnint(zij/hzz)
           r2=xij**2+yij**2+zij**2
-          f=f+4d0*eps*(sgm12/r2**6-sgm6/r2**3)
+          if (r2 < cutoff**2) then
+            f=f+4d0*eps*(sgm12/r2**6-sgm6/r2**3)
+          endif
         enddo
       enddo
 
@@ -189,14 +177,15 @@ c-----force
             yij=yij-hyy*dnint(yij/hyy)
             zij=zij-hzz*dnint(zij/hzz)
             r2=xij**2+yij**2+zij**2
-            factor=4d0*eps*
-     &      (-12d0*sgm12/r2**7+6d0*sgm6/r2**4)
-            dfdx(3*i-2)=dfdx(3*i-2)+factor*xij
-            dfdx(3*i-1)=dfdx(3*i-1)+factor*yij
-            dfdx(3*i  )=dfdx(3*i  )+factor*zij
+            if (r2 < cutoff**2) then
+              factor=4d0*eps*
+     &        (-12d0*sgm12/r2**7+6d0*sgm6/r2**4)
+              dfdx(3*i-2)=dfdx(3*i-2)+factor*xij
+              dfdx(3*i-1)=dfdx(3*i-1)+factor*yij
+              dfdx(3*i  )=dfdx(3*i  )+factor*zij
+            endif
           endif
         enddo
       enddo
-
       return
       end
