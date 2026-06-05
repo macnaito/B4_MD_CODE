@@ -1,16 +1,17 @@
       program Arfcc
       implicit none
-      integer nmax,n,i,j,k,l,inc,m,bs,rec
-      real*8 bohr,sgm,amass,ekin,Tk
+      integer nmax,n,i,j,k,l,inc,m,bs,rec,aa
+      real*8 bohr,sgm,amass,ekin,Tk,a
       parameter (nmax=30000)
       parameter(bohr=0.5292d0)
       parameter(sgm=3.4d0/bohr) 
       parameter(amass=40d0*1836d0)
-      real*8 hxx,hyy,hzz,tempK
+      real*8 hxx,hyy,hzz,tempK,sgmv,sgmvv
       real*8 x(3*nmax),v(3*nmax)
       real*8 xp(4),yp(4),zp(4),cunit
 
-      cunit=2.0d0**(1d0/6)*sgm*sqrt(2d0)
+      cunit=2.0d0**(1d0/6)*sgm*
+     &  sqrt(2d0)*0.975d0
       rec=0
 
 ! boxsize
@@ -49,13 +50,14 @@
       enddo
       enddo
       n=inc
+
 ! 初速度      
       do i=1,n
-        v(3*i-2)= 0d0
-        v(3*i-1)= 0d0
-        v(3*i  )= 0d0
+        v(3*i-2)=0d0
+        v(3*i-1)=0d0
+        v(3*i  )=0d0
       enddo
-      rec=0
+      rec=1
       if (rec==1) then
        open(10,file='final50x.dat')
        do i=1,3*n
@@ -67,10 +69,44 @@
             read(11,*)v(i)
       enddo
        close(11)
-       do i=1,3*n
-            v(i)=v(i)*((50d0/56.803d0)**(1d0/2d0))
+
+!格子欠陥
+      do j=1,51
+       if (j==1) exit
+       call random_number(a)
+       aa=int(a*n)+1
+       write(*,*)aa
+       do i=aa,n-1
+            x(3*i-2)=x(3*(i+1)-2)
+            x(3*i-1)=x(3*(i+1)-1)
+            x(3*i  )=x(3*(i+1)  )
+            v(3*i-2)=v(3*(i+1)-2)
+            v(3*i-1)=v(3*(i+1)-1)
+            v(3*i  )=v(3*(i+1)  )
        enddo
+       n=n-1
+      enddo
+
+!重心速度をひく     
+      sgmv=0d0
+      sgmvv=0d0
+      do i=1,3*n
+            sgmv=sgmv+v(i)
+      enddo
+      write(*,*)sgmv
+      sgmv=sgmv/(3d0*n)
+      do i=1,3*n
+            v(i)=v(i)-sgmv
+      enddo
+      do i=1,3*n
+            sgmvv=sgmvv+v(i)
+      enddo
+      do i=1,3*n
+        v(i)=(50d0/49.6605d0)**0.5*v(i)
+      enddo
+      write(*,*) sgmvv
       end if
+!重心速度
 
       ekin=0d0
       do j=1,3*n

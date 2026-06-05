@@ -17,10 +17,10 @@
       parameter(amass=40d0*1836d0)
       parameter(bohr=0.5292d0)
 ! time_step      
-      parameter(maxstep=1000)
+      parameter(maxstep=2000)
       real*8 T(maxstep)
       real*8 poten(maxstep)
-      dt=41d0
+      dt=41d0*5
 
       open(10,file='init.dat')
       read(10,*)n
@@ -112,13 +112,8 @@
           write(*,*)k,TK
         endif
       enddo
-
-      open (12,file='temple.dat')
-      do i=1,maxstep
-        write(12,*) T(i),poten(i)
-      enddo
-      close(12)
-      
+ 
+!kiroku
       rec=0
       if (rec==1) then
        open (10,file='final50x.dat')
@@ -133,6 +128,7 @@
        close(10)
       endif
 
+!温度のグラフ      
       open (12,file='t.dat')
       do i=1,maxstep
         write(12,*) T(i)

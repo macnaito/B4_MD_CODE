@@ -3,7 +3,7 @@
 !   Dynamics of n atoms interacting with the Lennard-Jones potential.
       program md_lj_pbc_heat
       implicit none
-      integer nmax
+      integer nmax,rec
       parameter(nmax=3000)
       integer i,j,k,m,n,maxstep,itemp
       real*8 x(3*nmax),v(3*nmax),dfdx(3*nmax)
@@ -19,6 +19,7 @@
       parameter(maxstep=8000)
       real*8 T(maxstep)
       real*8 Treg(maxstep)
+      real*8 Hmil(maxstep)
 
 !ファイルの読み込み
       open(10,file='init.dat')
@@ -47,9 +48,10 @@
       k=0
       Tk=0.d0
       xi=0.d0
+      rec=0
 ! time_step
-      dt=41d0
-      tau=85d0*dt
+      dt=41d0*5
+      tau=40d0*dt
 
       call pot(f,dfdx,x,n,hxx,hyy,hzz)
       do i=1,maxstep
@@ -102,6 +104,7 @@
      &    27.2116*11605d0
         T(i)=Tk
         write(*,*)Tk
+      
 !-------Note: 1 atomic unit of time = 2.42d-17 sec
 !        write(*,*)dt*i*2.42d-17,ekin,f,totalenergy
 
@@ -125,9 +128,23 @@
         endif
       enddo
 
+  
+      if (rec==1) then
+       open (10,file='final150x.dat')
+        do i=1,3*n
+         write(10,*) x(i),Hmil(i)
+        enddo
+       close(10)
+       open (10,file='final150v.dat')
+        do i=1,3*n
+         write(10,*) v(i)
+        enddo
+       close(10)
+      endif
+
       open (12,file='t.dat')
       do i=1,maxstep
-        write(12,*) T(i),Treg(i)
+        write(12,*) T(i)
       enddo
       close(12)
 
