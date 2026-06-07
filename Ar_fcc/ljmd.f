@@ -1,7 +1,3 @@
-!   << 3-dimension >>
-!
-!   Dynamics of n atoms interacting with the Lennard-Jones potential.
-!
       program md_lj
       implicit none
 

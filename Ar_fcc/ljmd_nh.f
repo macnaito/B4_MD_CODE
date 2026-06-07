@@ -1,10 +1,10 @@
 !   << 3-dimension >>
 !
 !   Dynamics of n atoms interacting with the Lennard-Jones potential.
-      program md_lj_pbc
+      program md_lj_pbc_heat
       implicit none
       integer nmax,rec
-      parameter(nmax=3000)
+      parameter(nmax=50000)
       integer i,j,k,m,n,maxstep,itemp
       real*8 x(3*nmax),v(3*nmax),dfdx(3*nmax)
       real*8 f,ekin,dt
@@ -12,13 +12,14 @@
       real*8 amass,bohr,hx,hy,hz,Tk
       character*2 lsp(nmax)
       character*40 filename2
-      real*8 Q,tau,Treg,xi,gkbt,hamil,eta
+      real*8 Q,tau,xi,gkbt
       parameter(amass=40d0*1836d0)
       parameter(bohr=0.5292d0)
 ! maxstep
-      parameter(maxstep=1000)
+      parameter(maxstep=2000)
       real*8 T(maxstep)
-      real*8 H(maxstep)
+      real*8 Treg(maxstep)
+      real*8 Hmil(maxstep)
 
 !ファイルの読み込み
       open(10,file='init.dat')
@@ -43,30 +44,28 @@
       do j=1,3*n
           ekin=ekin+0.5d0*amass*v(j)**2
       enddo
-
       filename2='out000.xyz'
       k=0
       Tk=0.d0
-      rec=0
       xi=0.d0
-      eta=0.d0
+      rec=0
 ! time_step
       dt=41d0*5
-! 目標温度
-      Treg=50d0
-      tau=35d0*dt
-      gkbt=(3.d0*dble(n))*Treg/(27.2116*11605d0)
-      Q=gkbt*tau**2
+      tau=40d0*dt
 
       call pot(f,dfdx,x,n,hxx,hyy,hzz)
-
       do i=1,maxstep
+!        Treg(i)=50d0+200d0*dble(i)/maxstep
+        Treg=100d0
+        gkbt=(3.d0*dble(n))*Treg(i)/(27.2116*11605d0)
+        Q=gkbt*tau**2
         xi=xi+0.5d0*dt*(2.d0*ekin-gkbt)/Q
+
         ekin=0d0
         do j=1,3*n
-          v(j)=(v(j)-(dt*0.5d0)*dfdx(j)/amass)
-     &         /(1+dt*0.5d0*xi)
-          ekin=ekin+0.5d0*amass*v(j)**2 
+          v(j)=v(j)+(dt/2d0)*((-dfdx(j)/amass)
+     &          -xi*v(j))
+          ekin=ekin+0.5d0*amass*v(j)**2
         enddo
 
 ! 周期境界条件
@@ -91,10 +90,9 @@
           endif
         enddo  
 
-! call pot
+!callpot
         call pot(f,dfdx,x,n,hxx,hyy,hzz)
-
-        xi=xi+0.5d0*dt*(2.d0*ekin-gkbt)/Q
+        xi=xi+0.50d0*dt*(2.d0*ekin-gkbt)/Q
 
         ekin=0d0
         do j=1,3*n
@@ -102,19 +100,12 @@
      &     /(1+dt*0.5d0*xi)
          ekin=ekin+0.5d0*amass*v(j)**2 
         enddo
-        eta=eta+xi*dt
-
-        hamil=ekin+f+0.5d0*Q*xi**2+gkbt*eta
-
 
         Tk=ekin*2d0/(3d0*dble(n))*
      &    27.2116*11605d0
         T(i)=Tk
-        H(i)=hamil
-        write(*,*) Tk
-        
-
-
+        write(*,*)Tk
+      
 !-------Note: 1 atomic unit of time = 2.42d-17 sec
 !        write(*,*)dt*i*2.42d-17,ekin,f,totalenergy
 
@@ -134,16 +125,18 @@
      &       x(3*m-2)*bohr,x(3*m-1)*bohr,x(3*m)*bohr,tempK
           enddo
           close(11)
+          write(*,*)k,Tk
         endif
       enddo
-      
+
+      rec=0
       if (rec==1) then
-       open (10,file='final50x.dat')
+       open (10,file='final150x.dat')
         do i=1,3*n
          write(10,*) x(i)
         enddo
        close(10)
-       open (10,file='final50v.dat')
+       open (10,file='final150v.dat')
         do i=1,3*n
          write(10,*) v(i)
         enddo
@@ -152,16 +145,11 @@
 
       open (12,file='t.dat')
       do i=1,maxstep
-        write(12,*) T(i),H(i)
+        write(12,*) T(i)
       enddo
       close(12)
-    
 
-          
-
-      
-
-      endprogram md_lj_pbc
+      endprogram md_lj_pbc_heat
 
       subroutine pot(f,dfdx,x,n,hxx,hyy,hzz)
       implicit none

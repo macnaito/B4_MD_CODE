@@ -15,7 +15,7 @@
       rec=0
 
 ! boxsize
-      bs=8
+      bs=10
 ! boxsize        
       hxx=bs*cunit*bohr
       hyy=bs*cunit*bohr
@@ -57,7 +57,7 @@
         v(3*i-1)=0d0
         v(3*i  )=0d0
       enddo
-      rec=1
+      rec=0
       if (rec==1) then
        open(10,file='final50x.dat')
        do i=1,3*n
@@ -68,10 +68,10 @@
        do i=1,3*n
             read(11,*)v(i)
       enddo
-       close(11)
+      close(11)
 
 !格子欠陥
-      do j=1,51
+      do j=1,51     
        if (j==1) exit
        call random_number(a)
        aa=int(a*n)+1
@@ -102,7 +102,7 @@
             sgmvv=sgmvv+v(i)
       enddo
       do i=1,3*n
-        v(i)=(50d0/49.6605d0)**0.5*v(i)
+        v(i)=(50d0/50.52d0)**0.5*v(i)
       enddo
       write(*,*) sgmvv
       end if
