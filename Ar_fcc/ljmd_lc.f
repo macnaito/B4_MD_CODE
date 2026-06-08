@@ -29,12 +29,12 @@
         x(3*i-1)=x(3*i-1)/bohr
         x(3*i  )=x(3*i  )/bohr
       enddo
-      read(10,*)hx,dummy,temp
-      read(10,*)temp,hy,temp
-      read(10,*)temp,temp,hz
-      hxx=hx/bohr
-      hyy=hy/bohr
-      hzz=hz/bohr
+      read(10,*)hxx,dummy,temp
+      read(10,*)temp,hyy,temp
+      read(10,*)temp,temp,hzz
+      hx=hxx/bohr
+      hy=hyy/bohr
+      hz=hzz/bohr
       close(10)
 !ファイルの読み込み
 
@@ -44,7 +44,7 @@
       k=0
 
 !計算start      
-      call pot(f,dfdx,x,n,hxx,hyy,hzz)
+      call pot(f,dfdx,x,n,hx,hy,hz)
       do i=1,maxstep
         do j=1,3*n
           v(j)=v(j)+(dt/2d0)*(-dfdx(j)/amass)
@@ -52,27 +52,27 @@
 ! 周期境界条件
         do j=1,n
           x(3*j-2)=x(3*j-2)+dt*v(3*j-2)
-          if (x(3*j-2).gt.hxx) then
-            x(3*j-2)=x(3*j-2)-hxx
+          if (x(3*j-2).gt.hx) then
+            x(3*j-2)=x(3*j-2)-hx
           else if (x(3*j-2).lt.0d0) then
-            x(3*j-2)=x(3*j-2)+hxx
+            x(3*j-2)=x(3*j-2)+hx
           endif 
           x(3*j-1)=x(3*j-1)+dt*v(3*j-1)
-          if (x(3*j-1).gt.hyy) then
-            x(3*j-1)=x(3*j-1)-hyy
+          if (x(3*j-1).gt.hy) then
+            x(3*j-1)=x(3*j-1)-hy
           else if (x(3*j-1).lt.0d0) then
-            x(3*j-1)=x(3*j-1)+hyy
+            x(3*j-1)=x(3*j-1)+hy
           endif
           x(3*j  )=x(3*j  )+dt*v(3*j  )
-          if (x(3*j  ).gt.hzz) then
-            x(3*j  )=x(3*j  )-hzz
+          if (x(3*j  ).gt.hz) then
+            x(3*j  )=x(3*j  )-hz
           else if (x(3*j  ).lt.0d0) then
-            x(3*j  )=x(3*j  )+hzz
+            x(3*j  )=x(3*j  )+hz
           endif
         enddo  
 !pbc 
 
-        call pot(f,dfdx,x,n,hxx,hyy,hzz)
+        call pot(f,dfdx,x,n,hx,hy,hz)
         do j=1,3*n
           v(j)=v(j)+(dt/2d0)*(-dfdx(j)/amass)
         enddo
@@ -145,7 +145,7 @@
       implicit real*8(a-h,o-z)
       integer mx,my,mz,hx_lc,hy_lc,hz_lc
       real*8 x(3*n),dfdx(3*n),f,factor
-      integer lcyz,lcxyz,i
+      integer hyz_lc,hxyz_lc,i
       integer ishiftx,ishifty,ishiftz
       parameter(sgm=3.4d0/0.5292d0)
       parameter(eps=120d0/11605d0/27.2116d0)
@@ -160,12 +160,12 @@
       hx_lc=max(int(hx/cutoff),1) !x座標のセル数
       hy_lc=max(int(hy/cutoff),1)
       hz_lc=max(int(hz/cutoff),1)
-      lcyz=hy_lc*hz_lc     !セルのyz平面の数
-      lcxyz=lcyz*hx_lc     !セルの総数
-      hx_cell=hx/hx_lc     !各方向のセルの大きさ
+      hyz_lc=hy_lc*hz_lc     !セルのyz平面の数
+      hxyz_lc=hyz_lc*hx_lc     !セルの総数
+      hx_cell=hx/hx_lc     !各方向のセルの長さ
       hy_cell=hy/hy_lc
       hz_cell=hz/hz_lc
-      allocate(lshd(lcxyz),lscl(n))
+      allocate(lshd(hxyz_lc),lscl(n))
       lshd=0
       do i=1,n
 !        if(x(3*i-2).lt.0d0 .or. x(3*i-2).ge.hx .or.
@@ -181,7 +181,7 @@
         mx=min(max(mx,0),hx_lc-1)
         my=min(max(my,0),hy_lc-1)
         mz=min(max(mz,0),hz_lc-1)
-        m=mx*lcyz+my*hz_lc+mz+1
+        m=mx*hyz_lc+my*hz_lc+mz+1
         lscl(i)=lshd(m)
         lshd(m)=i
       enddo
@@ -194,8 +194,8 @@
       do mz=0,hz_lc-1
       do my=0,hy_lc-1
       do mx=0,hx_lc-1
-        m=mx*lcyz+my*hz_lc+mz+1
-        if (lshd(m)==0)cycle
+        m=mx*hyz_lc+my*hz_lc+mz+1 !3つのdoloopで全てのセルを走査
+        if (lshd(m)==0)cycle !空のセルはスキップ
         do kuz=-kuzmax,kuzmax
         do kuy=-kuymax,kuymax
         do kux=-kuxmax,kuxmax
@@ -205,8 +205,8 @@
           call get_ishift(hy_lc,m1y,ishifty)
           m1z=mz+kuz
           call get_ishift(hz_lc,m1z,ishiftz)
-          m1=m1x*lcyz+m1y*hz_lc+m1z+1
-          if (lshd(m1)==0) cycle
+          m1=m1x*hyz_lc+m1y*hz_lc+m1z+1 !走査するセル番号
+          if (lshd(m1)==0) cycle !走査するセルがからならスキップ
           i=lshd(m)
           do while(i>0)
             j=lshd(m1)

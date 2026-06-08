@@ -8,6 +8,7 @@
       integer i,j,k,m,n,maxstep,itemp
       real*8 x(3*nmax),v(3*nmax),dfdx(3*nmax)
       real*8 f,ekin,dt
+      real*8 r(3*nmax),xij,yij,zij,r2,sgmr2,D
       real*8 hxx,hyy,hzz,temp,dummy,tempK
       real*8 amass,bohr,hx,hy,hz,Tk
       character*2 lsp(nmax)
@@ -20,18 +21,23 @@
       real*8 T(maxstep)
       real*8 H(maxstep)
       real*8 Treg(maxstep)
+      real*8 msd(maxstep)
 
 !ファイルの読み込み
       open(10,file='init.dat')
        read(10,*)n
        do i=1,n
         read(10,*)lsp(i),itemp,
-     &  x(3*i-2),x(3*i-1),x(3*i),
+     &  r(3*i-2),r(3*i-1),r(3*i),
      &  v(3*i-2),v(3*i-1),v(3*i)
 
-        x(3*i-2)=x(3*i-2)/bohr
-        x(3*i-1)=x(3*i-1)/bohr
-        x(3*i  )=x(3*i  )/bohr
+        x(3*i-2)=r(3*i-2)/bohr
+        x(3*i-1)=r(3*i-1)/bohr
+        x(3*i  )=r(3*i  )/bohr
+        r(3*i-2)=r(3*i-2)/bohr
+        r(3*i-1)=r(3*i-1)/bohr
+        r(3*i  )=r(3*i  )/bohr
+
        enddo
        read(10,*)hxx,dummy,temp
        read(10,*)temp,hyy,temp
@@ -40,6 +46,7 @@
        hy=hyy/bohr
        hz=hzz/bohr
       close(10)
+!ファイルの読みこみ
       ekin=0d0
       do j=1,3*n
           ekin=ekin+0.5d0*amass*v(j)**2
@@ -57,8 +64,8 @@
       call pot(f,dfdx,x,n,hx,hy,hz)
       do i=1,maxstep
 ! 目標温度
-!       Treg=100d0
-        Treg(i)=50d0+300d0*dble(i)/maxstep
+!        Treg=100d0
+        Treg(i)=50d0+350d0*dble(i)/maxstep
         tau=40d0*dt
         gkbt=(3.d0*dble(n))*Treg(i)/(27.2116*11605d0)
         Q=gkbt*tau**2
@@ -93,6 +100,21 @@
         enddo  
 !周期境界条件
 
+!平均二乗変位
+        sgmr2=0d0
+        do j=1,n
+         xij=x(3*j-2)-r(3*j-2)
+         yij=x(3*j-1)-r(3*j-1)
+         zij=x(3*j  )-r(3*j  )
+         xij=xij-hx*dnint(xij/hx)
+         yij=yij-hy*dnint(yij/hy)
+         zij=zij-hz*dnint(zij/hz)
+         r2=xij**2+yij**2+zij**2
+         sgmr2=sgmr2+r2
+        enddo
+        D=sgmr2/dble(n)
+!MSD
+
 ! call pot
         call pot(f,dfdx,x,n,hx,hy,hz)
 
@@ -111,7 +133,8 @@
      &    27.2116*11605d0
         T(i)=Tk
         H(i)=hamil
-        write(*,*) Tk
+        msd(i)=D
+        write(*,*) Tk,D
 
 !-------Note: 1 atomic unit of time = 2.42d-17 sec
 !        write(*,*)dt*i*2.42d-17,ekin,f,totalenergy
@@ -152,18 +175,19 @@
 
       open (12,file='t.dat')
       do i=1,maxstep
-        write(12,*) T(i),H(i)
+        write(12,*) T(i),msd(i)*5d0
       enddo
       close(12)
 !記録
 
       endprogram md_lj_pbc
 
+!linked cell list    
       subroutine pot(f,dfdx,x,n,hx,hy,hz)
       implicit real*8(a-h,o-z)
       integer mx,my,mz,hx_lc,hy_lc,hz_lc
       real*8 x(3*n),dfdx(3*n),f,factor
-      integer lcyz,lcxyz,i
+      integer hyz_lc,hxyz_lc,i
       integer ishiftx,ishifty,ishiftz
       parameter(sgm=3.4d0/0.5292d0)
       parameter(eps=120d0/11605d0/27.2116d0)
@@ -178,28 +202,28 @@
       hx_lc=max(int(hx/cutoff),1) !x座標のセル数
       hy_lc=max(int(hy/cutoff),1)
       hz_lc=max(int(hz/cutoff),1)
-      lcyz=hy_lc*hz_lc     !セルのyz平面の数
-      lcxyz=lcyz*hx_lc     !セルの総数
-      hx_cell=hx/hx_lc     !各方向のセルの大きさ
+      hyz_lc=hy_lc*hz_lc     !セルのyz平面の数
+      hxyz_lc=hyz_lc*hx_lc     !セルの総数
+      hx_cell=hx/hx_lc     !各方向のセルの長さ
       hy_cell=hy/hy_lc
       hz_cell=hz/hz_lc
-      allocate(lshd(lcxyz),lscl(n))
+      allocate(lshd(hxyz_lc),lscl(n))
       lshd=0
       do i=1,n
-!        if(x(3*i-2).lt.0d0 .or. x(3*i-2).ge.hx .or.
-!     &     x(3*i-1).lt.0d0 .or. x(3*i-1).ge.hy .or.
-!     &     x(3*i  ).lt.0d0 .or. x(3*i  ).ge.hz )then
-!          write(*,*)'Error! i, x,y,z=',
-!     &     i,x(3*i-2),x(3*i-1),x(3*i)
-!          stop
-!        endif
+        if(x(3*i-2).lt.0d0 .or. x(3*i-2).ge.hx .or.
+     &     x(3*i-1).lt.0d0 .or. x(3*i-1).ge.hy .or.
+     &     x(3*i  ).lt.0d0 .or. x(3*i  ).ge.hz )then
+          write(*,*)'Error! i, x,y,z=',
+     &     i,x(3*i-2),x(3*i-1),x(3*i)
+          stop
+        endif
         mx=int(x(3*i-2)/hx_cell)
         my=int(x(3*i-1)/hy_cell)
         mz=int(x(3*i  )/hz_cell)
         mx=min(max(mx,0),hx_lc-1)
         my=min(max(my,0),hy_lc-1)
         mz=min(max(mz,0),hz_lc-1)
-        m=mx*lcyz+my*hz_lc+mz+1
+        m=mx*hyz_lc+my*hz_lc+mz+1
         lscl(i)=lshd(m)
         lshd(m)=i
       enddo
@@ -212,8 +236,8 @@
       do mz=0,hz_lc-1
       do my=0,hy_lc-1
       do mx=0,hx_lc-1
-        m=mx*lcyz+my*hz_lc+mz+1
-        if (lshd(m)==0)cycle
+        m=mx*hyz_lc+my*hz_lc+mz+1 !3つのdoloopで全てのセルを走査
+        if (lshd(m)==0)cycle !空のセルはスキップ
         do kuz=-kuzmax,kuzmax
         do kuy=-kuymax,kuymax
         do kux=-kuxmax,kuxmax
@@ -223,8 +247,8 @@
           call get_ishift(hy_lc,m1y,ishifty)
           m1z=mz+kuz
           call get_ishift(hz_lc,m1z,ishiftz)
-          m1=m1x*lcyz+m1y*hz_lc+m1z+1
-          if (lshd(m1)==0) cycle
+          m1=m1x*hyz_lc+m1y*hz_lc+m1z+1 !走査するセル番号
+          if (lshd(m1)==0) cycle !走査するセルがからならスキップ
           i=lshd(m)
           do while(i>0)
             j=lshd(m1)
@@ -279,4 +303,3 @@
       endif
       return
       end
-!end
