@@ -1,153 +1,154 @@
-!   << 3-dimension >>
-!
-!   Dynamics of n atoms interacting with the Lennard-Jones potential.
-      program md_lj_pbc
+      program md_lj_pbc_langban_BAOAB
       implicit none
       integer nmax,rec
-      parameter(nmax=30000)
+      parameter(nmax=5000)
       integer i,j,k,m,n,maxstep,itemp
       real*8 x(3*nmax),v(3*nmax),dfdx(3*nmax)
-      real*8 f,ekin,dt
-      real*8 r(3*nmax),xij,yij,zij,r2,sgmr2,D
+      real*8 f,ekin,totalenergy,dt
       real*8 hxx,hyy,hzz,temp,dummy,tempK
-      real*8 amass,bohr,hx,hy,hz,Tk
+      real*8 amass,bohr,hx,hy,hz,TK
       character*2 lsp(nmax)
       character*40 filename2
-      real*8 Q,tau,xi,gkbt,hamil,eta
       parameter(amass=40d0*1836d0)
       parameter(bohr=0.5292d0)
-! maxstep
-      parameter(maxstep=10000)
+! time_step      
+      parameter(maxstep=5000)
       real*8 T(maxstep)
-      real*8 H(maxstep)
       real*8 Treg(maxstep)
-      real*8 msd(maxstep)
+      real*8 poten(maxstep)
+      real*8 gpa(maxstep)
+! rang
+      real*8 gamma
+      real*8 sigma,kb
+      real*8 gauss
+      external gauss
+      real*8 virial,vol,p,tau,beta,preg
+      dt=41d0*5
+      gamma=1.d-4
+      kb=1.d0/(27.2116*11605d0)
 
-!ファイルの読み込み
+! μ
+      tau=1d0
+      beta=1d0
+      preg=1d0
+
+!ファイルの読みこみ      
       open(10,file='init.dat')
-       read(10,*)n
-       do i=1,n
+      read(10,*)n
+      do i=1,n
         read(10,*)lsp(i),itemp,
-     &  r(3*i-2),r(3*i-1),r(3*i),
+     &  x(3*i-2),x(3*i-1),x(3*i),
      &  v(3*i-2),v(3*i-1),v(3*i)
 
-        x(3*i-2)=r(3*i-2)/bohr
-        x(3*i-1)=r(3*i-1)/bohr
-        x(3*i  )=r(3*i  )/bohr
-        r(3*i-2)=r(3*i-2)/bohr
-        r(3*i-1)=r(3*i-1)/bohr
-        r(3*i  )=r(3*i  )/bohr
-
-       enddo
-       read(10,*)hxx,dummy,temp
-       read(10,*)temp,hyy,temp
-       read(10,*)temp,temp,hzz
-       hx=hxx/bohr
-       hy=hyy/bohr
-       hz=hzz/bohr
+        x(3*i-2)=x(3*i-2)/bohr
+        x(3*i-1)=x(3*i-1)/bohr
+        x(3*i  )=x(3*i  )/bohr
+      enddo
+      read(10,*)hxx,dummy,temp
+      read(10,*)temp,hyy,temp
+      read(10,*)temp,temp,hzz
+      hx=hxx/bohr
+      hy=hyy/bohr
+      hz=hzz/bohr
       close(10)
-!ファイルの読みこみ
-
+!ファイルの読み込み
 
       filename2='out000.xyz'
       k=0
-      Tk=0.d0
-      rec=0
-      xi=0.d0
-      eta=0.d0
-! time_step
-      dt=41d0*5
+      vol=hx*hy*hz
 
-      call pot(f,dfdx,x,n,hx,hy,hz)
-      ekin=0d0
-      do j=1,3*n
-          ekin=ekin+0.5d0*amass*v(j)**2
-        enddo
+!計算start      
+      call pot(f,dfdx,x,n,hx,hy,hz,virial)
       do i=1,maxstep
-! 目標温度
-!        Treg(i)=50d0
         Treg(i)=50d0+300d0*dble(i)/maxstep
-        tau=10d0*dt
-        gkbt=(3.d0*dble(n))*Treg(i)/(27.2116*11605d0)
-        Q=gkbt*tau**2
-        xi=xi+0.5d0*dt*(2.d0*ekin-gkbt)/Q
-
-        ekin=0d0
+        kb=1.d0/(27.2116*11605d0)
+        sigma=sqrt(kb*Treg(i)/amass*
+     &  (1d0-exp(-gamma*dt/2d0)**2))
         do j=1,3*n
-          v(j)=v(j)+0.5d0*dt*(-dfdx(j)/amass-xi*v(j))
-          ekin=ekin+0.5d0*amass*v(j)**2
+          v(j)=v(j)+(dt/2d0)*(-dfdx(j)/amass)
         enddo
-        xi=xi+0.5d0*dt*(2.d0*ekin-gkbt)/Q
-
 ! 周期境界条件
         do j=1,n
-          x(3*j-2)=x(3*j-2)+dt*v(3*j-2)
+          x(3*j-2)=x(3*j-2)+0.5d0*dt*v(3*j-2)
           if (x(3*j-2).gt.hx) then
             x(3*j-2)=x(3*j-2)-hx
           else if (x(3*j-2).lt.0d0) then
             x(3*j-2)=x(3*j-2)+hx
           endif 
-          x(3*j-1)=x(3*j-1)+dt*v(3*j-1)
+          x(3*j-1)=x(3*j-1)+0.5d0*dt*v(3*j-1)
           if (x(3*j-1).gt.hy) then
             x(3*j-1)=x(3*j-1)-hy
           else if (x(3*j-1).lt.0d0) then
             x(3*j-1)=x(3*j-1)+hy
           endif
-          x(3*j  )=x(3*j  )+dt*v(3*j  )
+          x(3*j  )=x(3*j  )+0.5d0*dt*v(3*j  )
           if (x(3*j  ).gt.hz) then
             x(3*j  )=x(3*j  )-hz
           else if (x(3*j  ).lt.0d0) then
             x(3*j  )=x(3*j  )+hz
           endif
         enddo  
-!周期境界条件
+!pbc 
 
-!平均二乗変位
-        sgmr2=0d0
-        do j=1,n
-         xij=x(3*j-2)-r(3*j-2)
-         yij=x(3*j-1)-r(3*j-1)
-         zij=x(3*j  )-r(3*j  )
-         xij=xij-hx*dnint(xij/hx)
-         yij=yij-hy*dnint(yij/hy)
-         zij=zij-hz*dnint(zij/hz)
-         r2=xij**2+yij**2+zij**2
-         sgmr2=sgmr2+r2
+        do j=1,3*n
+          v(j)=exp(-gamma*dt/2d0)*v(j)+sigma*gauss()
         enddo
-        D=sgmr2/dble(n)
-!MSD
 
-! call pot
-        call pot(f,dfdx,x,n,hx,hy,hz)
+! 周期境界条件
+        do j=1,n
+          x(3*j-2)=x(3*j-2)+0.5d0*dt*v(3*j-2)
+          if (x(3*j-2).gt.hx) then
+            x(3*j-2)=x(3*j-2)-hx
+          else if (x(3*j-2).lt.0d0) then
+            x(3*j-2)=x(3*j-2)+hx
+          endif 
+          x(3*j-1)=x(3*j-1)+0.5d0*dt*v(3*j-1)
+          if (x(3*j-1).gt.hy) then
+            x(3*j-1)=x(3*j-1)-hy
+          else if (x(3*j-1).lt.0d0) then
+            x(3*j-1)=x(3*j-1)+hy
+          endif
+          x(3*j  )=x(3*j  )+0.5d0*dt*v(3*j  )
+          if (x(3*j  ).gt.hz) then
+            x(3*j  )=x(3*j  )-hz
+          else if (x(3*j  ).lt.0d0) then
+            x(3*j  )=x(3*j  )+hz
+          endif
+        enddo  
+!pbc
 
+        call pot(f,dfdx,x,n,hx,hy,hz,virial)
+        do j=1,3*n
+          v(j)=v(j)+(dt/2d0)*(-dfdx(j)/amass)
+        enddo
+
+!温度圧力計算        
         ekin=0d0
         do j=1,3*n
-         v(j)=(v(j)-dt*0.5d0*dfdx(j)/amass)
-     &     /(1+dt*0.5d0*xi)
-         ekin=ekin+0.5d0*amass*v(j)**2 
+          ekin=ekin+0.5d0*amass*v(j)**2
         enddo
-        
-
-!        eta=eta+xi*dt
-!        hamil=ekin+f+0.5d0*Q*xi**2+gkbt*eta
         Tk=ekin*2d0/(3d0*dble(n))*
      &    27.2116*11605d0
         T(i)=Tk
-!        H(i)=hamil
-        msd(i)=D
-        write(*,*) Tk
-      
+        p=(n*kb*Tk+virial/3.d0)/vol
+        p=p*29421.d0
+        gpa(i)=p
+!温度圧力計算    
 
-!-------Note: 1 atomic unit of time = 2.42d-17 sec
-!        write(*,*)dt*i*2.42d-17,ekin,f,totalenergy
-!ファイルへの書き出し
+        write(*,*) Tk,gpa
+
+        totalenergy=f+ekin
+        poten(i)=totalenergy
+
+!ファイルの書き出し
         if(mod(i,100).eq.0)then
           k=k+1
-          write(filename2(4:6),'(i3.3)')k        
+          write(filename2(4:6),'(i3.3)')k
+
           open(11,file=filename2)
           write(11,*)n
           write(11,'(a,3(3e15.7),a,a)')
-     &       'Lattice="',hxx,0.0,0.0,0.0,hyy,0.0,0.0,0.0,hzz,'" ',
+     &       'Lattice="',hx,0.0,0.0,0.0,hy,0.0,0.0,0.0,hz,'" ',
      &       'Properties=species:S:1:id:I:1:pos:R:3:tempK:R:1'
            do m=1,n
             tempK=amass/2*(v(3*m-2)**2+v(3*m-1)**2+v(3*m)**2)
@@ -156,11 +157,13 @@
      &       x(3*m-2)*bohr,x(3*m-1)*bohr,x(3*m)*bohr,tempK
           enddo
           close(11)
+          TK=ekin*315775.0d0/(1.5d0*n)
+!          write(*,*)k,TK
         endif
       enddo
-!ファイルへの書き出し
-
-!記録  
+!ここまで      
+ 
+!kiroku
       rec=0
       if (rec==1) then
        open (10,file='final50x.dat')
@@ -174,19 +177,20 @@
         enddo
        close(10)
       endif
+!kiroku
 
+!温度のグラフ      
       open (12,file='t.dat')
       do i=1,maxstep
-        write(12,*) T(i),msd(i)*10d0
+        write(12,*) T(i),gpa(i)
       enddo
       close(12)
+!ここまで
 
-!記録
+      endprogram 
 
-      endprogram md_lj_pbc
-
-!linked cell list    
-      subroutine pot(f,dfdx,x,n,hx,hy,hz)
+!linked cell
+      subroutine pot(f,dfdx,x,n,hx,hy,hz,virial)
       implicit real*8(a-h,o-z)
       integer mx,my,mz,hx_lc,hy_lc,hz_lc
       real*8 x(3*n),dfdx(3*n),f,factor
@@ -197,7 +201,9 @@
       parameter(sgm12=sgm**12,sgm6=sgm**6)
       parameter(cutoff=2.5d0*sgm)
       integer,allocatable,dimension(:):: lshd,lscl
+      real*8 virial
 
+      virial=0.d0
       do i=1,3*n
         dfdx(i)=0d0
       enddo
@@ -271,6 +277,7 @@
                   dfdx(3*j-2)=dfdx(3*j-2)-factor*rijx
                   dfdx(3*j-1)=dfdx(3*j-1)-factor*rijy
                   dfdx(3*j  )=dfdx(3*j  )-factor*rijz
+                  virial=virial-factor*rij2
                 end if
               endif
               j=lscl(j)
@@ -285,7 +292,9 @@
       enddo
       deallocate(lshd,lscl)
       end      
-!subrutine ishift
+
+
+!subrutine ishift  
       subroutine get_ishift(lc,i,ishift)
       implicit none
       integer lc,i,ishift
@@ -304,3 +313,21 @@
       endif
       return
       end
+
+!ガウス乱数 box muller 平均０分散１
+      function gauss()
+      implicit none
+      real*8 gauss
+      real*8 u1,u2
+
+      call random_number(u1)
+      call random_number(u2)
+      gauss=sqrt(-2.d0*log(u1))
+     & *cos(2.d0*3.14159265d0*u2) 
+      
+      return
+      end
+
+!
+
+

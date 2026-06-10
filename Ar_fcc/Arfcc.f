@@ -13,6 +13,7 @@
       cunit=2.0d0**(1d0/6)*sgm*
      &  sqrt(2d0)*0.975d0
       rec=0
+      write(*,*)cunit
 
 ! boxsize
       bs=10
@@ -57,7 +58,7 @@
         v(3*i-1)=0d0
         v(3*i  )=0d0
       enddo
-      rec=0
+      rec=1
       if (rec==1) then
        open(10,file='final50x.dat')
        do i=1,3*n
@@ -71,7 +72,7 @@
       close(11)
 
 !格子欠陥
-      do j=1,51     
+      do j=1,20
        if (j==1) exit
        call random_number(a)
        aa=int(a*n)+1
