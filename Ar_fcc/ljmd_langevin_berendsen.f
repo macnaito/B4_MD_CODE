@@ -1,10 +1,10 @@
-      program md_lj_pbc_langban_BAOAB
+      program md_lj_pbc_langban_BAOAB_berendsen
       implicit none
       integer nmax,rec
-      parameter(nmax=5000)
+      parameter(nmax=50000)
       integer i,j,k,m,n,maxstep,itemp
       real*8 x(3*nmax),v(3*nmax),dfdx(3*nmax)
-      real*8 f,ekin,totalenergy,dt
+      real*8 f,ekin,dt
       real*8 hxx,hyy,hzz,temp,dummy,tempK
       real*8 amass,bohr,hx,hy,hz,TK
       character*2 lsp(nmax)
@@ -12,20 +12,31 @@
       parameter(amass=40d0*1836d0)
       parameter(bohr=0.5292d0)
 ! time_step      
-      parameter(maxstep=5000)
+      parameter(maxstep=10000)
       real*8 T(maxstep)
       real*8 Treg(maxstep)
-      real*8 poten(maxstep)
       real*8 gpa(maxstep)
+      real*8 L(maxstep)
+      real*8 msd(maxstep)
+      real*8 sgmr2,D,r2,xij,yij,zij
+      real*8 r(3*nmax)
+      
 ! rang
       real*8 gamma
       real*8 sigma,kb
       real*8 gauss
       external gauss
-      real*8 virial,vol,p
+      real*8 virial,p,tau,beta
+      real*8 preg,micro
       dt=41d0*5
       gamma=1.d-4
       kb=1.d0/(27.2116*11605d0)
+
+! μ
+      tau=30.d0*dt
+      beta=0.4d0
+      preg=0.0001d0
+   
 
 !ファイルの読みこみ      
       open(10,file='init.dat')
@@ -50,12 +61,19 @@
 
       filename2='out000.xyz'
       k=0
-      vol=hx*hy*hz
 
 !計算start      
       call pot(f,dfdx,x,n,hx,hy,hz,virial)
       do i=1,maxstep
-        Treg(i)=50d0+300d0*dble(i)/maxstep
+!        Treg(i)=50d0
+        if (i<1000) then
+         Treg(i)=50d0
+        elseif (i<5500) then
+          Treg(i)=50.d0+0.01d0*(i-1000d0)
+        else
+          Treg(i)=95.d0
+        endif
+
         kb=1.d0/(27.2116*11605d0)
         sigma=sqrt(kb*Treg(i)/amass*
      &  (1d0-exp(-gamma*dt/2d0)**2))
@@ -112,12 +130,28 @@
         enddo  
 !pbc
 
+!平均二乗変位
+        sgmr2=0d0
+        do j=1,n
+         xij=x(3*j-2)-r(3*j-2)
+         yij=x(3*j-1)-r(3*j-1)
+         zij=x(3*j  )-r(3*j  )
+         xij=xij-hx*dnint(xij/hx)
+         yij=yij-hy*dnint(yij/hy)
+         zij=zij-hz*dnint(zij/hz)
+         r2=xij**2+yij**2+zij**2
+         sgmr2=sgmr2+r2
+        enddo
+        D=sgmr2/dble(n)
+        msd(i)=D
+!MSD        
+
         call pot(f,dfdx,x,n,hx,hy,hz,virial)
         do j=1,3*n
           v(j)=v(j)+(dt/2d0)*(-dfdx(j)/amass)
         enddo
 
-!温度圧力計算        
+!温度計算        
         ekin=0d0
         do j=1,3*n
           ekin=ekin+0.5d0*amass*v(j)**2
@@ -125,15 +159,22 @@
         Tk=ekin*2d0/(3d0*dble(n))*
      &    27.2116*11605d0
         T(i)=Tk
-        p=(n*kb*Tk+virial/3.d0)/vol
+!温度計算    
+
+!圧力計算＋berendsen method
+        p=(n*kb*Tk+virial/3.d0)/(hx*hy*hz)
         p=p*29421.d0
         gpa(i)=p
-!温度圧力計算    
-
-        write(*,*) Tk,gpa
-
-        totalenergy=f+ekin
-        poten(i)=totalenergy
+        micro=1d0+dt/tau*beta*(p-preg)
+        hx=micro*hx
+        hy=micro*hy
+        hz=micro*hz
+        L(i)=hx
+        do j=1,n
+          x(3*j-2)=micro*x(3*j-2)
+          x(3*j-1)=micro*x(3*j-1)
+          x(3*j  )=micro*x(3*j  )
+        enddo
 
 !ファイルの書き出し
         if(mod(i,100).eq.0)then
@@ -143,7 +184,8 @@
           open(11,file=filename2)
           write(11,*)n
           write(11,'(a,3(3e15.7),a,a)')
-     &       'Lattice="',hx,0.0,0.0,0.0,hy,0.0,0.0,0.0,hz,'" ',
+     &       'Lattice="',hx*bohr,0.0,0.0,0.0,hy*bohr,
+     &            0.0,0.0,0.0,hz*bohr,'" ',
      &       'Properties=species:S:1:id:I:1:pos:R:3:tempK:R:1'
            do m=1,n
             tempK=amass/2*(v(3*m-2)**2+v(3*m-1)**2+v(3*m)**2)
@@ -153,10 +195,11 @@
           enddo
           close(11)
           TK=ekin*315775.0d0/(1.5d0*n)
-!          write(*,*)k,TK
         endif
+!ファイルの書き出し
+        write(*,*) Tk,p
       enddo
-!ここまで      
+
  
 !kiroku
       rec=0
@@ -177,7 +220,7 @@
 !温度のグラフ      
       open (12,file='t.dat')
       do i=1,maxstep
-        write(12,*) T(i),gpa(i)
+        write(12,*) T(i),gpa(i)*10000
       enddo
       close(12)
 !ここまで

@@ -1,31 +1,29 @@
-      program md_lj_pbc_rangban_BAOAB
+      program md_lj_pbc_rangbanBAOAB_pr
       implicit none
-      integer nmax,rec
+      integer nmax
       parameter(nmax=5000)
       integer i,j,k,m,n,maxstep,itemp
       real*8 x(3*nmax),v(3*nmax),dfdx(3*nmax)
-      real*8 f,ekin,totalenergy,dt
+      real*8 f,ekin,dt
       real*8 hxx,hyy,hzz,temp,dummy,tempK
       real*8 amass,bohr,hx,hy,hz,TK
       character*2 lsp(nmax)
       character*40 filename2
       parameter(amass=40d0*1836d0)
       parameter(bohr=0.5292d0)
+      real*8 L,vL,aL,W,Lold,scale
+      real*8 virial,p,kb,pext
 ! time_step      
-      parameter(maxstep=1000)
+      parameter(maxstep=10000)
       real*8 T(maxstep)
-      real*8 poten(maxstep)
+      real*8 gpa(maxstep)
 ! rang
       real*8 gamma,Treg
-      real*8 sigma,kb
+      real*8 sigma
       real*8 gauss
       external gauss
       dt=41d0*5
       gamma=1.d-4
-      Treg=100d0
-      kb=1.d0/(27.2116*11605d0)
-      sigma=sqrt(kb*Treg/amass*
-     &  (1d0-exp(-gamma*dt/2d0)**2))
       kb=1.d0/(27.2116*11605d0)
 
 !ファイルの読みこみ      
@@ -51,81 +49,116 @@
 
       filename2='out000.xyz'
       k=0
+      pext=1.01325d-4
+      L=hx
+      vL=0.d0
+      W=1.d9
+
 
 !計算start      
-      call pot(f,dfdx,x,n,hx,hy,hz)
+
       do i=1,maxstep
+        if(i<4000) then
+         Treg=50d0
+        elseif(i<8000)then
+          Treg=50.d0+0.0125d0*(i-4000d0)
+        else
+          Treg=100.d0
+        endif
+        sigma=sqrt(kb*Treg/amass*(1d0-exp(-gamma*dt)**2))
+        call pot(f,dfdx,x,n,hx,hy,hz,virial)
+!圧力の計算
+        ekin=0d0
+        do j=1,3*n
+          ekin=ekin+0.5d0*amass*v(j)**2
+        enddo
+        Tk=ekin*2d0/(3d0*dble(n))*27.2116*11605d0
+        T(i)=Tk
+        p=(n*kb*Tk+virial/3.d0)/(hx*hy*hz)*29421.d0
+        aL=(p-pext)*L/W
+        vL=vL+0.50*aL*dt
+
         do j=1,3*n
           v(j)=v(j)+(dt/2d0)*(-dfdx(j)/amass)
         enddo
-! 周期境界条件
+
+        Lold=L
+        L=L+vL*0.5d0*dt
+        scale=L/Lold
+        hx=hx*scale
+        hy=hy*scale
+        hz=hz*scale
+        do j=1,3*n
+          x(j)=x(j)*scale
+        enddo
+!位置更新
         do j=1,n
           x(3*j-2)=x(3*j-2)+0.5d0*dt*v(3*j-2)
+          x(3*j-1)=x(3*j-1)+0.5d0*dt*v(3*j-1)
+          x(3*j  )=x(3*j  )+0.5d0*dt*v(3*j  )
+        enddo  
+!
+
+        do j=1,3*n
+          v(j)=exp(-gamma*dt)*v(j)+sigma*gauss()
+        enddo
+
+!位置更新
+        do j=1,n
+          x(3*j-2)=x(3*j-2)+0.5d0*dt*v(3*j-2)          
+          x(3*j-1)=x(3*j-1)+0.5d0*dt*v(3*j-1)
+          x(3*j  )=x(3*j  )+0.5d0*dt*v(3*j  )
+        enddo  
+!
+
+!周期境界条件
+        do j=1,n
           if (x(3*j-2).gt.hx) then
             x(3*j-2)=x(3*j-2)-hx
           else if (x(3*j-2).lt.0d0) then
             x(3*j-2)=x(3*j-2)+hx
           endif 
-          x(3*j-1)=x(3*j-1)+0.5d0*dt*v(3*j-1)
           if (x(3*j-1).gt.hy) then
             x(3*j-1)=x(3*j-1)-hy
           else if (x(3*j-1).lt.0d0) then
             x(3*j-1)=x(3*j-1)+hy
           endif
-          x(3*j  )=x(3*j  )+0.5d0*dt*v(3*j  )
           if (x(3*j  ).gt.hz) then
             x(3*j  )=x(3*j  )-hz
           else if (x(3*j  ).lt.0d0) then
             x(3*j  )=x(3*j  )+hz
           endif
-        enddo  
-!pbc 
-
-        do j=1,3*n
-          v(j)=exp(-gamma*dt/2d0)*v(j)+sigma*gauss()
         enddo
+!周期境界条件
 
-! 周期境界条件
-        do j=1,n
-          x(3*j-2)=x(3*j-2)+0.5d0*dt*v(3*j-2)
-          if (x(3*j-2).gt.hx) then
-            x(3*j-2)=x(3*j-2)-hx
-          else if (x(3*j-2).lt.0d0) then
-            x(3*j-2)=x(3*j-2)+hx
-          endif 
-          x(3*j-1)=x(3*j-1)+0.5d0*dt*v(3*j-1)
-          if (x(3*j-1).gt.hy) then
-            x(3*j-1)=x(3*j-1)-hy
-          else if (x(3*j-1).lt.0d0) then
-            x(3*j-1)=x(3*j-1)+hy
-          endif
-          x(3*j  )=x(3*j  )+0.5d0*dt*v(3*j  )
-          if (x(3*j  ).gt.hz) then
-            x(3*j  )=x(3*j  )-hz
-          else if (x(3*j  ).lt.0d0) then
-            x(3*j  )=x(3*j  )+hz
-          endif
-        enddo  
-!pbc
-
-        call pot(f,dfdx,x,n,hx,hy,hz)
+        call pot(f,dfdx,x,n,hx,hy,hz,virial)
         do j=1,3*n
           v(j)=v(j)+(dt/2d0)*(-dfdx(j)/amass)
         enddo
 
-!温度計算        
+        Lold=L
+        L=L+vL*0.5d0*dt
+        scale=L/Lold
+        hx=hx*scale
+        hy=hy*scale
+        hz=hz*scale
+        do j=1,3*n
+          x(j)=x(j)*scale
+        enddo
+
+!温度圧力計算        
         ekin=0d0
         do j=1,3*n
           ekin=ekin+0.5d0*amass*v(j)**2
         enddo
         Tk=ekin*2d0/(3d0*dble(n))*
      &    27.2116*11605d0
-        write(*,*) Tk
         T(i)=Tk
-!温度計算        
-
-        totalenergy=f+ekin
-        poten(i)=totalenergy
+        p=(n*kb*Tk+virial/3.d0)/(hx*hy*hz)*29421.d0
+        gpa(i)=p
+        aL=(p-pext)*L/W
+        vL=vL+0.5d0*aL*dt
+!温度圧力計算        
 
 !ファイルの書き出し
         if(mod(i,100).eq.0)then
@@ -135,7 +168,8 @@
           open(11,file=filename2)
           write(11,*)n
           write(11,'(a,3(3e15.7),a,a)')
-     &       'Lattice="',hx,0.0,0.0,0.0,hy,0.0,0.0,0.0,hz,'" ',
+     &       'Lattice="',hx*bohr,0.0,0.0,0.0,hy*bohr,
+     &           0.0,0.0,0.0,hz*bohr,'" ',
      &       'Properties=species:S:1:id:I:1:pos:R:3:tempK:R:1'
            do m=1,n
             tempK=amass/2*(v(3*m-2)**2+v(3*m-1)**2+v(3*m)**2)
@@ -145,31 +179,17 @@
           enddo
           close(11)
           TK=ekin*315775.0d0/(1.5d0*n)
-!          write(*,*)k,TK
         endif
-      enddo
-!ここまで      
+!ここまで
+      write(*,*) Tk,p
+
+      enddo    
  
-!kiroku
-      rec=0
-      if (rec==1) then
-       open (10,file='final50x.dat')
-        do i=1,3*n
-         write(10,*) x(i)
-        enddo
-       close(10)
-       open (10,file='final50v.dat')
-        do i=1,3*n
-         write(10,*) v(i)
-        enddo
-       close(10)
-      endif
-!kiroku
 
 !温度のグラフ      
       open (12,file='t.dat')
       do i=1,maxstep
-        write(12,*) T(i)
+        write(12,*) T(i),gpa(i)
       enddo
       close(12)
 !ここまで
@@ -177,7 +197,7 @@
       endprogram 
 
 !linked cell
-      subroutine pot(f,dfdx,x,n,hx,hy,hz)
+      subroutine pot(f,dfdx,x,n,hx,hy,hz,virial)
       implicit real*8(a-h,o-z)
       integer mx,my,mz,hx_lc,hy_lc,hz_lc
       real*8 x(3*n),dfdx(3*n),f,factor
@@ -188,7 +208,9 @@
       parameter(sgm12=sgm**12,sgm6=sgm**6)
       parameter(cutoff=2.5d0*sgm)
       integer,allocatable,dimension(:):: lshd,lscl
+      real*8 virial
 
+      virial=0.d0
       do i=1,3*n
         dfdx(i)=0d0
       enddo
@@ -262,6 +284,7 @@
                   dfdx(3*j-2)=dfdx(3*j-2)-factor*rijx
                   dfdx(3*j-1)=dfdx(3*j-1)-factor*rijy
                   dfdx(3*j  )=dfdx(3*j  )-factor*rijz
+                  virial=virial-factor*rij2
                 end if
               endif
               j=lscl(j)
@@ -278,8 +301,7 @@
       end      
 
 
-!subrutine ishift
-  
+!subrutine ishift  
       subroutine get_ishift(lc,i,ishift)
       implicit none
       integer lc,i,ishift
@@ -312,7 +334,3 @@
       
       return
       end
-
-!
-
-

@@ -1,4 +1,4 @@
-      program md_lj_pbc_langban_BAOAB
+      program md_lj_pbc_lg_lc
       implicit none
       integer nmax,rec
       parameter(nmax=5000)
@@ -22,15 +22,10 @@
       real*8 sigma,kb
       real*8 gauss
       external gauss
-      real*8 virial,vol,p,tau,beta,preg
+      real*8 virial,vol,p
       dt=41d0*5
       gamma=1.d-4
       kb=1.d0/(27.2116*11605d0)
-
-! μ
-      tau=1d0
-      beta=1d0
-      preg=1d0
 
 !ファイルの読みこみ      
       open(10,file='init.dat')
@@ -148,7 +143,7 @@
           open(11,file=filename2)
           write(11,*)n
           write(11,'(a,3(3e15.7),a,a)')
-     &       'Lattice="',hx,0.0,0.0,0.0,hy,0.0,0.0,0.0,hz,'" ',
+     &       'Lattice="',hxx,0.0,0.0,0.0,hyy,0.0,0.0,0.0,hzz,'" ',
      &       'Properties=species:S:1:id:I:1:pos:R:3:tempK:R:1'
            do m=1,n
             tempK=amass/2*(v(3*m-2)**2+v(3*m-1)**2+v(3*m)**2)
