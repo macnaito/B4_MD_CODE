@@ -1,4 +1,4 @@
-      program md_lj_pbc_langban_BAOAB_berendsen
+      program ljmd_langevin_berendsen_lc_pbc
       implicit none
       integer nmax,rec
       parameter(nmax=50000)
@@ -33,7 +33,7 @@
       kb=1.d0/(27.2116*11605d0)
 
 ! μ
-      tau=30.d0*dt
+      tau=500.d0*dt
       beta=0.4d0
       preg=0.0001d0
    
@@ -65,14 +65,7 @@
 !計算start      
       call pot(f,dfdx,x,n,hx,hy,hz,virial)
       do i=1,maxstep
-!        Treg(i)=50d0
-        if (i<1000) then
-         Treg(i)=50d0
-        elseif (i<5500) then
-          Treg(i)=50.d0+0.01d0*(i-1000d0)
-        else
-          Treg(i)=95.d0
-        endif
+        Treg(i)=50d0
 
         kb=1.d0/(27.2116*11605d0)
         sigma=sqrt(kb*Treg(i)/amass*
@@ -204,17 +197,18 @@
 !kiroku
       rec=0
       if (rec==1) then
-       open (10,file='final50x.dat')
-        do i=1,3*n
-         write(10,*) x(i)
-        enddo
+       open(10,file='lv50k_bs0.001gpa.dat')
+       write(10,*)n
+       do i=1,n
+        write(10,'(a,i5,6e15.7)') 'Ar',i,
+     &       x(3*i-2)*bohr,x(3*i-1)*bohr,x(3*i)*bohr,
+     &       v(3*i-2),v(3*i-1),v(3*i)
+       enddo
+       write(10,'(3e24.15)')hx*bohr,0d0,0d0
+       write(10,'(3e24.15)')0d0,hy*bohr,0d0
+       write(10,'(3e24.15)')0d0,0d0,hz*bohr
        close(10)
-       open (10,file='final50v.dat')
-        do i=1,3*n
-         write(10,*) v(i)
-        enddo
-       close(10)
-      endif
+      endif 
 !kiroku
 
 !温度のグラフ      

@@ -129,7 +129,6 @@
       write(10,'(3e24.15)')hxx,0d0,0d0
       write(10,'(3e24.15)')0d0,hyy,0d0
       write(10,'(3e24.15)')0d0,0d0,hzz
-
       close(10)
 
       open(11,file='first.xyz')

@@ -14,7 +14,7 @@
       real*8 L,vL,aL,W,Lold,scale
       real*8 virial,p,kb,pext
 ! time_step      
-      parameter(maxstep=10000)
+      parameter(maxstep=15000)
       real*8 T(maxstep)
       real*8 gpa(maxstep)
 ! rang
@@ -27,7 +27,7 @@
       kb=1.d0/(27.2116*11605d0)
 
 !ファイルの読みこみ      
-      open(10,file='init.dat')
+      open(10,file='lv50k_bs0.001gpa.dat')
       read(10,*)n
       do i=1,n
         read(10,*)lsp(i),itemp,
@@ -52,36 +52,34 @@
       pext=1.01325d-4
       L=hx
       vL=0.d0
-      W=1.d9
+      W=1.d8
 
 
-!計算start      
-
-      do i=1,maxstep
-        if(i<4000) then
-         Treg=50d0
-        elseif(i<8000)then
-          Treg=50.d0+0.0125d0*(i-4000d0)
-        else
-          Treg=100.d0
-        endif
-        sigma=sqrt(kb*Treg/amass*(1d0-exp(-gamma*dt)**2))
-        call pot(f,dfdx,x,n,hx,hy,hz,virial)
-!圧力の計算
-        ekin=0d0
-        do j=1,3*n
+!計算start    
+      call pot (f,dfdx,x,n,hx,hy,hz,virial)
+      ekin=0d0
+      do j=1,3*n
           ekin=ekin+0.5d0*amass*v(j)**2
-        enddo
-        Tk=ekin*2d0/(3d0*dble(n))*27.2116*11605d0
-        T(i)=Tk
-        p=(n*kb*Tk+virial/3.d0)/(hx*hy*hz)*29421.d0
-        aL=(p-pext)*L/W
-        vL=vL+0.50*aL*dt
+      enddo
+      Tk=ekin*2d0/(3d0*dble(n))*27.2116*11605d0
+      p=(n*kb*Tk+virial/3.d0)/(hx*hy*hz)*29421.d0
+      aL=(p-pext)*L/W
+      vL=vL+0.50*aL*dt  
+!計算start 
+      do i=1,maxstep
+        Treg=93d0     
+        if (i<(Treg-50d00)*200)then
+         Treg=50d0+0.005*i
+        endif
+
+        sigma=sqrt(kb*Treg/amass*(1d0-exp(-gamma*dt)**2))
 
         do j=1,3*n
           v(j)=v(j)+(dt/2d0)*(-dfdx(j)/amass)
         enddo
 
+!圧力の計算
+        
         Lold=L
         L=L+vL*0.5d0*dt
         scale=L/Lold
@@ -90,6 +88,7 @@
         hz=hz*scale
         do j=1,3*n
           x(j)=x(j)*scale
+          v(j)=v(j)/scale
         enddo
 !位置更新
         do j=1,n
@@ -101,6 +100,17 @@
 
         do j=1,3*n
           v(j)=exp(-gamma*dt)*v(j)+sigma*gauss()
+        enddo
+
+        Lold=L
+        L=L+vL*0.5d0*dt
+        scale=L/Lold
+        hx=hx*scale
+        hy=hy*scale
+        hz=hz*scale
+        do j=1,3*n
+          x(j)=x(j)*scale
+          v(j)=v(j)/scale
         enddo
 
 !位置更新
@@ -136,15 +146,6 @@
           v(j)=v(j)+(dt/2d0)*(-dfdx(j)/amass)
         enddo
 
-        Lold=L
-        L=L+vL*0.5d0*dt
-        scale=L/Lold
-        hx=hx*scale
-        hy=hy*scale
-        hz=hz*scale
-        do j=1,3*n
-          x(j)=x(j)*scale
-        enddo
 
 !温度圧力計算        
         ekin=0d0
