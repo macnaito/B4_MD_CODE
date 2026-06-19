@@ -1,11 +1,11 @@
-      program md_lj_pbc
+      program md_lj
       implicit none
       integer nmax,rec
       parameter(nmax=5000)
       integer i,j,k,m,n,maxstep,itemp
       real*8 x(3*nmax),v(3*nmax),dfdx(3*nmax)
       real*8 f,ekin,totalenergy,dt
-      real*8 hxx,hyy,hzz,temp,dummy,tempK
+      real*8 temp,dummy,tempK
       real*8 amass,bohr,hx,hy,hz,TK
       character*2 lsp(nmax)
       character*40 filename2
@@ -29,12 +29,12 @@
         x(3*i-1)=x(3*i-1)/bohr
         x(3*i  )=x(3*i  )/bohr
       enddo
-      read(10,*)hxx,dummy,temp
-      read(10,*)temp,hyy,temp
-      read(10,*)temp,temp,hzz
-      hx=hxx/bohr
-      hy=hyy/bohr
-      hz=hzz/bohr
+      read(10,*)hx,dummy,temp
+      read(10,*)temp,hy,temp
+      read(10,*)temp,temp,hz
+      hx=hx/bohr
+      hy=hy/bohr
+      hz=hz/bohr
       close(10)
 !ファイルの読み込み
 
@@ -99,7 +99,8 @@
           open(11,file=filename2)
           write(11,*)n
           write(11,'(a,3(3e15.7),a,a)')
-     &       'Lattice="',hx,0.0,0.0,0.0,hy,0.0,0.0,0.0,hz,'" ',
+     &       'Lattice="',hx*bohr,0.0,0.0,0.0,hy*bohr,
+     &          0.0,0.0,0.0,hz*bohr,'" ',
      &       'Properties=species:S:1:id:I:1:pos:R:3:tempK:R:1'
            do m=1,n
             tempK=amass/2*(v(3*m-2)**2+v(3*m-1)**2+v(3*m)**2)
@@ -109,10 +110,10 @@
           enddo
           close(11)
           TK=ekin*315775.0d0/(1.5d0*n)
-          write(*,*)k,TK
         endif
+!ここまで        
       enddo
-!ここまで      
+
  
 !kiroku
       rec=0
@@ -138,7 +139,7 @@
       close(12)
 !ここまで
 
-      endprogram md_lj_pbc
+      endprogram
 
 
       subroutine pot(f,dfdx,x,n,hx,hy,hz)

@@ -1,4 +1,5 @@
-      program md_lj_pbc_rangbanBAOAB_pr
+      program pbc_lvBAOAB_parrinello
+! PBC lc lengevine Parrinello-Rahman(isotropic)
       implicit none
       integer nmax
       parameter(nmax=5000)
