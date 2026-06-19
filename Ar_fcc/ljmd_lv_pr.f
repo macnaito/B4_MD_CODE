@@ -15,7 +15,7 @@
       real*8 L,vL,aL,W,Lold,scale
       real*8 virial,p,kb,pext
 ! time_step      
-      parameter(maxstep=15000)
+      parameter(maxstep=1000)
       real*8 T(maxstep)
       real*8 gpa(maxstep)
 ! rang
@@ -68,15 +68,15 @@
       vL=vL+0.50*aL*dt  
 !計算start 
       do i=1,maxstep
-        Treg=93d0     
-        if (i<(Treg-50d00)*200)then
-         Treg=50d0+0.005*i
-        endif
+        Treg=50d0     
+!        if (i<(Treg-50d00)*200)then
+!         Treg=50d0+0.005*i
+!        endif
 
         sigma=sqrt(kb*Treg/amass*(1d0-exp(-gamma*dt)**2))
 
         do j=1,3*n
-          v(j)=v(j)+(dt/2d0)*(-dfdx(j)/amass)
+          v(j)=v(j)+(dt/2d0)*(dfdx(j)/amass)
         enddo
 
 !圧力の計算
@@ -144,7 +144,7 @@
 
         call pot(f,dfdx,x,n,hx,hy,hz,virial)
         do j=1,3*n
-          v(j)=v(j)+(dt/2d0)*(-dfdx(j)/amass)
+          v(j)=v(j)+(dt/2d0)*(dfdx(j)/amass)
         enddo
 
 
@@ -280,12 +280,12 @@
                   f=f+4d0*eps*(sgm12/rij2**6-sgm6/rij2**3)
                   factor=4d0*eps*
      &            (-12d0*sgm12/rij2**7+6d0*sgm6/rij2**4)
-                  dfdx(3*i-2)=dfdx(3*i-2)+factor*rijx
-                  dfdx(3*i-1)=dfdx(3*i-1)+factor*rijy
-                  dfdx(3*i  )=dfdx(3*i  )+factor*rijz
-                  dfdx(3*j-2)=dfdx(3*j-2)-factor*rijx
-                  dfdx(3*j-1)=dfdx(3*j-1)-factor*rijy
-                  dfdx(3*j  )=dfdx(3*j  )-factor*rijz
+                  dfdx(3*i-2)=dfdx(3*i-2)-factor*rijx
+                  dfdx(3*i-1)=dfdx(3*i-1)-factor*rijy
+                  dfdx(3*i  )=dfdx(3*i  )-factor*rijz
+                  dfdx(3*j-2)=dfdx(3*j-2)+factor*rijx
+                  dfdx(3*j-1)=dfdx(3*j-1)+factor*rijy
+                  dfdx(3*j  )=dfdx(3*j  )+factor*rijz
                   virial=virial-factor*rij2
                 end if
               endif
