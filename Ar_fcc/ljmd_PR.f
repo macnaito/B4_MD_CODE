@@ -5,18 +5,18 @@
       parameter(nmax=4000)
       integer i,j,k,m,n,maxstep,itemp
       real*8 x(3,nmax),v(3,nmax),dfdx(3,nmax)
-      real*8 f,ekin,dt
-      real*8 h(3,3),temp,dummy,tempK
+      real*8 f,ekin(3,3),dt
+      real*8 h(3,3),temp,dummy,tempK,vol
       real*8 amass,bohr,TK
       character*2 lsp(nmax)
       character*40 filename2
       parameter(amass=40d0*1836d0)
       parameter(bohr=0.5292d0)
       real*8 W,Lold,scale
-      real*8 virial,p,kb,pext
-      real*8 s(3,nmax),ah(3,3),vh(3,3)
+      real*8 virial(3,3),p(3,3),kb,pext(3,3)
+      real*8 s(3,nmax),ah(3,3),vh(3,3),h_inver(3,3)
 ! time_step      
-      parameter(maxstep=1000)
+      parameter(maxstep=1)
       real*8 T(maxstep)
       real*8 gpa(maxstep)
 ! rang
@@ -27,6 +27,7 @@
       dt=41d0*5
       gamma=1.d-4
       kb=1.d0/(27.2116*11605d0)
+      h=0d0
 
 !ファイルの読みこみ      
       open(10,file='lv50k_bs0.001gpa.dat')
@@ -55,24 +56,26 @@
 
       filename2='out000.xyz'
       k=0
-      pext=1.01325d-4
-      L=h(1,1)
-      vL=0.d0
+      pext=0d0
+      ah=0d0
+      vh=0d0
       W=1.d9
 
 
 !計算start    
       call pot (f,dfdx,x,n,h,virial)
+      call inverse_mass(h,h_inver,vol)
       ekin=0d0
-      do j=1,n
-          ekin=ekin+0.5d0*amass*
-     &     (v(1,j)**2+v(2,j)**2+v(3,j)**2)
+      do i=1,n
+       do m=1,3
+       do n=1,3
+        ekin(m,n)=ekin(m,n)+amass*v(m,i)*v(n,i)
+       enddo
+       enddo
       enddo
-      Tk=ekin*2d0/(3d0*dble(n))*27.2116*11605d0
-      p=(n*kb*Tk+virial/3.d0)/
-     &     (h(1,1)*h(2,2)*h(3,3))*29421.d0
-      aL=(p-pext)*L/W
-      vL=vL+0.50*aL*dt  
+
+      p=(ekin+virial)/vol
+
 !計算start 
       do i=1,maxstep
         Treg=50d0     
@@ -89,9 +92,9 @@
 
 !圧力の計算
         
-        Lold=L
-        L=L+vL*0.5d0*dt
-        scale=L/Lold
+!        Lold=L
+ !       L=L+vL*0.5d0*dt
+!        scale=L/Lold
         h(1,1)=h(1,1)*scale
         h(2,2)=h(2,2)*scale
         h(3,3)=h(3,3)*scale
@@ -114,9 +117,9 @@
           v(3,j)=exp(-gamma*dt)*v(3,j)+sigma*gauss()
         enddo
 
-        Lold=L
-        L=L+vL*0.5d0*dt
-        scale=L/Lold
+!        Lold=L
+!        L=L+vL*0.5d0*dt
+!        scale=L/Lold
         h(1,1)=h(1,1)*scale
         h(2,2)=h(2,2)*scale
         h(3,3)=h(3,3)*scale
@@ -154,21 +157,7 @@
         enddo
 
 
-!温度圧力計算        
-        ekin=0d0
-        do j=1,n
-          ekin=ekin+0.5d0*amass
-     &         *(v(1,j)**2+v(2,j)**2+v(3,j)**2)
-        enddo
-        Tk=ekin*2d0/(3d0*dble(n))*
-     &    27.2116*11605d0
-        T(i)=Tk
-        p=(n*kb*Tk+virial/3.d0)/
-     &   (h(1,1)*h(2,2)*h(3,3))*29421.d0
-        gpa(i)=p
-        aL=(p-pext)*L/W
-        vL=vL+0.5d0*aL*dt
-!温度圧力計算        
+     
 
 !ファイルの書き出し
         if(mod(i,100).eq.0)then
@@ -188,7 +177,7 @@
      &       x(1,m)*bohr,x(2,m)*bohr,x(3,m)*bohr,tempK
           enddo
           close(11)
-          TK=ekin*315775.0d0/(1.5d0*n)
+
         endif
 !ここまで
 !      write(*,*)
@@ -218,7 +207,8 @@
       parameter(sgm12=sgm**12,sgm6=sgm**6)
       parameter(cutoff=2.5d0*sgm)
       integer,allocatable,dimension(:):: lshd,lscl
-      real*8 virial
+      real*8 virial(3,3),rij(3)
+
 
       virial=0.d0
       dfdx=0d0
@@ -274,25 +264,31 @@
           m1=m1x*hyz_lc+m1y*hz_lc+m1z+1 !走査するセル番号
           if (lshd(m1)==0) cycle !走査するセルがからならスキップ
           i=lshd(m)
+          rij=0
           do while(i>0)
             j=lshd(m1)
             do while(j>0)
               if (i<j) then
-                rijx=x(1,i)-(x(1,j)+ishiftx*h(1,1))
-                rijy=x(2,i)-(x(2,j)+ishifty*h(2,2))
-                rijz=x(3,i)-(x(3,j)+ishiftz*h(3,3))
-                rij2=rijx**2+rijy**2+rijz**2
+                rij(1)=x(1,i)-(x(1,j)+ishiftx*h(1,1))
+                rij(2)=x(2,i)-(x(2,j)+ishifty*h(2,2))
+                rij(3)=x(3,i)-(x(3,j)+ishiftz*h(3,3))
+                rij2=rij(1)**2+rij(2)**2+rij(3)**2
                 if (rij2<cutoff**2) then
                   f=f+4d0*eps*(sgm12/rij2**6-sgm6/rij2**3)
                   factor=4d0*eps*
      &            (-12d0*sgm12/rij2**7+6d0*sgm6/rij2**4)
-                  dfdx(1,i)=dfdx(1,i)-factor*rijx
-                  dfdx(2,i)=dfdx(2,i)-factor*rijy
-                  dfdx(3,i)=dfdx(3,i)-factor*rijz
-                  dfdx(1,j)=dfdx(1,j)+factor*rijx
-                  dfdx(2,j)=dfdx(2,j)+factor*rijy
-                  dfdx(3,j)=dfdx(3,j)+factor*rijz
+                  dfdx(1,i)=dfdx(1,i)-factor*rij(1)
+                  dfdx(2,i)=dfdx(2,i)-factor*rij(2)
+                  dfdx(3,i)=dfdx(3,i)-factor*rij(3)
+                  dfdx(1,j)=dfdx(1,j)+factor*rij(1)
+                  dfdx(2,j)=dfdx(2,j)+factor*rij(2)
+                  dfdx(3,j)=dfdx(3,j)+factor*rij(3)
                   virial=virial-factor*rij2
+                  do m=1,3
+                  do n=1,3
+                   virial(m,n)=virial(m,n)-factor*rij(m)*rij(n)
+                  enddo
+                  enddo
                 end if
               endif
               j=lscl(j)
@@ -342,3 +338,27 @@
       
       return
       end
+
+!逆行列と体積
+      subroutine inverse_mass(h,h_inver,vol)
+      implicit none
+      real*8 h(3,3)
+      real*8 h_inver(3,3)
+      real*8 vol
+
+      vol=h(1,1)*(h(2,2)*h(3,3)-h(2,3)*h(3,2))
+     &   -h(1,2)*(h(2,1)*h(3,3)-h(2,3)*h(3,1))
+     &   +h(1,3)*(h(2,1)*h(3,2)-h(2,2)*h(3,1))
+
+      h_inver(1,1)=(h(2,2)*h(3,3)-h(2,3)*h(3,2))/vol
+      h_inver(1,2)=(h(2,3)*h(3,1)-h(2,1)*h(3,3))/vol
+      h_inver(1,3)=(h(2,1)*h(3,2)-h(3,1)*h(2,2))/vol
+      h_inver(2,1)=(h(1,3)*h(3,2)-h(1,2)*h(3,3))/vol
+      h_inver(2,2)=(h(1,1)*h(3,3)-h(1,3)*h(3,1))/vol
+      h_inver(2,3)=(h(1,2)*h(3,1)-h(1,1)*h(3,2))/vol
+      h_inver(3,1)=(h(1,2)*h(2,3)-h(1,3)*h(2,2))/vol
+      h_inver(3,2)=(h(1,3)*h(2,1)-h(1,1)*h(2,3))/vol
+      h_inver(3,3)=(h(1,1)*h(2,2)-h(1,2)*h(2,1))/vol
+      end subroutine
+
+!      
