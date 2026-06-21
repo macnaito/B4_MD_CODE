@@ -1,5 +1,5 @@
       program pbc_lvBAOAB_parrinello
-! PBC lc lengevine Parrinello-Rahman
+! PBC lcl lengevine Parrinello-Rahman
       implicit none
       integer nmax
       parameter(nmax=4000)
@@ -16,8 +16,11 @@
       real*8 virial(3,3),p(3,3),kb,pext(3,3)
       real*8 s(3,nmax),ah(3,3),vh(3,3),h_inver(3,3)
       real*8 vs(3,nmax),as(3,nmax)
+      
 ! time_step      
-      parameter(maxstep=1000)
+      parameter(maxstep=4795)
+      real*8 gpa(maxstep)
+      real*8 t(maxstep),tk,kin,rmin
     
 
 ! rang
@@ -26,13 +29,15 @@
       real*8 gauss
       external gauss
       dt=41d0
-      gamma=1.d-4
+      gamma=1.d-3
       kb=1.d0/(27.2116*11605d0)
       h=0d0
+      pext=0d0
+     
 
 !ファイルの読みこみ      
- !     open(10,file='lv50k_bs0.001gpa.dat')
-      open(10,file='init.dat')
+      open(10,file='lv50k_bs0.001gpa.dat')
+ !     open(10,file='init.dat')
       read(10,*)n
       do i=1,n
         read(10,*)lsp(i),itemp,
@@ -53,26 +58,25 @@
       filename2='out000.xyz'
       k=0
       pext=0d0
-      pext(1,1)=3.399d-5
-      pext(2,2)=3.399d-5
-      pext(3,3)=3.399d-5
+    
       ah=0d0
       vh=0d0
-      W=1.d15
+      W=1.d7
       as=0d0
 
 
 !計算start    
-      call pot (f,dfdx,x,n,h,virial)
+      call pot (f,dfdx,x,n,h,virial,rmin)
       call inverse_mass(h,h_inver,vol)
       call press(v,virial,n,vol,p,ekin)
+      
  
       do i=1,n
        vs(:,i)=matmul(h_inver,v(:,i))
        s(:,i)=matmul(h_inver,x(:,i))
       enddo
       G=matmul(h_inver,vh)
-      as=matmul(h_inver,dfdx)/amass-2.d0*matmul(G,vs)
+      as=-matmul(h_inver,dfdx)/amass-2.d0*matmul(G,vs)
       ah=vol/W*matmul((p-pext),transpose(h_inver))
 
 
@@ -85,7 +89,6 @@
          vs(2,i)=vs(2,i)+0.5d0*dt*as(2,i)
          vs(3,i)=vs(3,i)+0.5d0*dt*as(3,i)
         enddo
-
         vh=vh+0.5d0*dt*ah
    
         do i=1,n
@@ -101,32 +104,32 @@
           enddo
         enddo
 
-        h=h+dt*vh
+        h=h+dt*vh+0.5d0*dt*dt*ah
 
         x=matmul(h,s)
+        v=matmul(h,vs)+matmul(vh,s)
+        do j=1,n
+          v(:,j)=exp(-gamma*dt)*v(:,j)+sigma*gauss()
+        enddo
+        vs=matmul(h_inver,v-matmul(vh,s))
 
-        call pot(f,dfdx,x,n,h,virial)
+        call pot(f,dfdx,x,n,h,virial,rmin)
         call inverse_mass(h,h_inver,vol)
+        call press(v,virial,n,vol,p,ekin)
+
+        G=matmul(h_inver,vh)
+        as=-matmul(h_inver,dfdx)/amass-2d0*matmul(G,vs)
+        ah=vol/W*matmul((p-pext),transpose(h_inver))
 
         do i=1,n
          vs(1,i)=vs(1,i)+0.5d0*dt*as(1,i)
          vs(2,i)=vs(2,i)+0.5d0*dt*as(2,i)
          vs(3,i)=vs(3,i)+0.5d0*dt*as(3,i)
         enddo
-        vh=vh+0.5d0*dt*ah
-
-        v=matmul(h,vs)+matmul(vh,s)
-        call press(v,virial,n,vol,p,ekin)
-
-        G=matmul(h_inver,vh)
-        as=matmul(h_inver,dfdx)/amass-2d0*matmul(G,vs)
-        ah=vol/W*matmul((p-pext),transpose(h_inver))
-
-        write(*,*)istep,h(1,1),h(2,2),h(3,3)
-     &  ,vh(1,1),ah(1,1)
+        vh=vh+0.5d0*dt*ah      
      
 !ファイルの書き出し
-        if(mod(istep,10).eq.0)then
+        if(mod(istep,100).eq.0)then
           k=k+1
           write(filename2(4:6),'(i3.3)')k
 
@@ -145,27 +148,53 @@
         endif
 !ここまで      
 
+!温度計算    
+        v=matmul(h,vs)+matmul(vh,s)    
+        kin=0d0
+        do j=1,n
+          kin=kin+0.5d0*amass*
+     &     (v(1,j)**2+v(2,j)**2+v(3,j)**2)
+        enddo
+        tk=kin*2d0/(3d0*dble(n))*
+     &     27.2116*11605d0
+!温度計算 
+ 
+        write(*,*) istep,p(1,1)*29421d0,h(1,1),tk,ah(1,1),rmin
+        gpa(istep)=p(1,1)*29421d0
+        t(istep)=tk
+        t(istep)=tk
       enddo
+
+!グラフ      
+      open (12,file='t.dat')
+      do i=1,maxstep
+        write(12,*) gpa(i),t(i)
+      enddo
+      close(12)
+!ここまで
+
       end program
 
 
 !linked cell
-      subroutine pot(f,dfdx,x,n,h,virial)
+      subroutine pot(f,dfdx,x,n,h,virial,rmin)
       implicit real*8(a-h,o-z)
-      integer mx,my,mz,hx_lc,hy_lc,hz_lc
+      integer mx,my,mz,hx_lc,hy_lc,hz_lc,m1,m
       real*8 x(3,n),dfdx(3,n),f,factor,h(3,3)
-      integer hyz_lc,hxyz_lc,i
+      integer hyz_lc,hxyz_lc,i,m1x,m1y,m1z
       integer ishiftx,ishifty,ishiftz
       parameter(sgm=3.4d0/0.5292d0)
       parameter(eps=120d0/11605d0/27.2116d0)
       parameter(sgm12=sgm**12,sgm6=sgm**6)
       parameter(cutoff=2.5d0*sgm)
       integer,allocatable,dimension(:):: lshd,lscl
-      real*8 virial(3,3),rij(3)
+      real*8 virial(3,3),rij(3),rmin
+
 
 
       virial=0.d0
       dfdx=0d0
+      rmin=1000d0
 
       hx_lc=max(int(h(1,1)/cutoff),1) !x座標のセル数
       hy_lc=max(int(h(2,2)/cutoff),1)
@@ -218,7 +247,6 @@
           m1=m1x*hyz_lc+m1y*hz_lc+m1z+1 !走査するセル番号
           if (lshd(m1)==0) cycle !走査するセルがからならスキップ
           i=lshd(m)
-          rij=0
           do while(i>0)
             j=lshd(m1)
             do while(j>0)
@@ -227,20 +255,21 @@
                 rij(2)=x(2,i)-(x(2,j)+ishifty*h(2,2))
                 rij(3)=x(3,i)-(x(3,j)+ishiftz*h(3,3))
                 rij2=rij(1)**2+rij(2)**2+rij(3)**2
+                rmin=min(rmin,sqrt(rij2))
                 if (rij2<cutoff**2) then
                   f=f+4d0*eps*(sgm12/rij2**6-sgm6/rij2**3)
                   factor=4d0*eps*
      &            (-12d0*sgm12/rij2**7+6d0*sgm6/rij2**4)
-                  dfdx(1,i)=dfdx(1,i)-factor*rij(1)
-                  dfdx(2,i)=dfdx(2,i)-factor*rij(2)
-                  dfdx(3,i)=dfdx(3,i)-factor*rij(3)
-                  dfdx(1,j)=dfdx(1,j)+factor*rij(1)
-                  dfdx(2,j)=dfdx(2,j)+factor*rij(2)
-                  dfdx(3,j)=dfdx(3,j)+factor*rij(3)
+                  dfdx(1,i)=dfdx(1,i)+factor*rij(1)
+                  dfdx(2,i)=dfdx(2,i)+factor*rij(2)
+                  dfdx(3,i)=dfdx(3,i)+factor*rij(3)
+                  dfdx(1,j)=dfdx(1,j)-factor*rij(1)
+                  dfdx(2,j)=dfdx(2,j)-factor*rij(2)
+                  dfdx(3,j)=dfdx(3,j)-factor*rij(3)
 
-                  do m=1,3
+                  do k=1,3
                   do l=1,3
-                   virial(m,l)=virial(m,l)-factor*rij(m)*rij(l)
+                   virial(k,l)=virial(k,l)-factor*rij(k)*rij(l)
                   enddo
                   enddo
                 end if
@@ -256,6 +285,7 @@
       enddo
       enddo
       deallocate(lshd,lscl)
+
       end      
 
 
@@ -333,9 +363,4 @@
        enddo
       enddo
       p=(ekin+virial)/vol
-
-
-
       end subroutine
-
-!      

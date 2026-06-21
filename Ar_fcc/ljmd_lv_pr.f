@@ -15,7 +15,7 @@
       real*8 L,vL,aL,W,Lold,scale
       real*8 virial,p,kb,pext
 ! time_step      
-      parameter(maxstep=1000)
+      parameter(maxstep=5000)
       real*8 T(maxstep)
       real*8 gpa(maxstep)
 ! rang
@@ -29,6 +29,7 @@
 
 !ファイルの読みこみ      
       open(10,file='lv50k_bs0.001gpa.dat')
+      
       read(10,*)n
       do i=1,n
         read(10,*)lsp(i),itemp,
