@@ -15,7 +15,7 @@
       real*8 L,vL,aL,W,Lold,scale
       real*8 virial,p,kb,pext
 ! time_step      
-      parameter(maxstep=5000)
+      parameter(maxstep=1)
       real*8 T(maxstep)
       real*8 gpa(maxstep)
 ! rang
@@ -212,6 +212,7 @@
       parameter(cutoff=2.5d0*sgm)
       integer,allocatable,dimension(:):: lshd,lscl
       real*8 virial
+      write(*,*)cutoff,sgm,hx
 
       virial=0.d0
       do i=1,3*n

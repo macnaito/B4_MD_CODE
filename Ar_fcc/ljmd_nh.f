@@ -164,6 +164,11 @@
       parameter(sgm12=sgm**12,sgm6=sgm**6)
       parameter(cutoff=2.5d0*sgm)
       f=0d0
+      do i=1,n
+       dfdx(3*i-2)=0d0
+       dfdx(3*i-1)=0d0
+       dfdx(3*i  )=0d0
+      enddo
 c-----potential
       do i=1,n-1
         do j=i+1,n
@@ -182,10 +187,6 @@ c-----potential
 
 c-----force
       do i=1,n
-        dfdx(3*i-2)=0d0
-        dfdx(3*i-1)=0d0
-        dfdx(3*i  )=0d0
-
         do j=1,n
           if(j.ne.i)then
             xij=x(3*i-2)-x(3*j-2)
