@@ -1,245 +1,247 @@
-      program pbc_lvBAOAB_parrinello
-! PBC lc lengevine Parrinello-Rahman(isotropic)
+      program pbc_lv_pr
+! PBC lcl lengevine（BAOAB) Parrinello-Rahman
       implicit none
       integer nmax
-      parameter(nmax=5000)
-      integer i,j,k,m,n,maxstep,itemp
-      real*8 x(3*nmax),v(3*nmax),dfdx(3*nmax)
-      real*8 f,ekin,dt
-      real*8 hxx,hyy,hzz,temp,dummy,tempK
-      real*8 amass,bohr,hx,hy,hz,TK
+      parameter(nmax=10000)
+      integer i,j,k,m,n,maxstep,itemp,istep
+      real*8 x(3,nmax),v(3,nmax),dfdx(3,nmax),f,dt
+      real*8 h(3,3),vol,amass,bohr
       character*2 lsp(nmax)
       character*40 filename2
       parameter(amass=40d0*1836d0)
       parameter(bohr=0.5292d0)
-      real*8 L,vL,aL,W,Lold,scale
-      real*8 virial,p,kb,pext
-! time_step      
-      parameter(maxstep=1)
-      real*8 T(maxstep)
-      real*8 gpa(maxstep)
-! rang
-      real*8 gamma,Treg
-      real*8 sigma
-      real*8 gauss
+      real*8 W,sgm(3,3),tk,kin,rmin
+      real*8 virial(3,3),p(3,3),kb,pext(3,3)
+      real*8 s(3,nmax),ah(3,3),vh(3,3),h_inver(3,3),dmt(3,3)
+      real*8 vs(3,nmax),as(3,nmax),mt(3,3),mt_inver(3,3)
+      real*8 gamma,Treg,sigma,gauss
       external gauss
-      dt=41d0*5
-      gamma=1.d-4
+      
+! time_step      
+      parameter(maxstep=1000)
+      real*8 gpa(maxstep)
+      real*8 t(maxstep)
+      real*8 hx(maxstep)
+    
+
+      dt=41d0
+      gamma=1.d-3
       kb=1.d0/(27.2116*11605d0)
+      W=1.d8
+      pext=0d0
+      pext(1,1)=1.01325d-4/29421d0
+      pext(2,2)=1.01325d-4/29421d0
+      pext(3,3)=1.01325d-4/29421d0
+      filename2='out000.xyz'
+      k=0
+      vh=0d0
+      
 
 !ファイルの読みこみ      
-      open(10,file='lv50k_bs0.001gpa.dat')
-      
+      open(10,file='lv50_pr1d-4_8788.dat')
+!      open(10,file='init.dat')
       read(10,*)n
       do i=1,n
         read(10,*)lsp(i),itemp,
-     &  x(3*i-2),x(3*i-1),x(3*i),
-     &  v(3*i-2),v(3*i-1),v(3*i)
+     &  x(1,i),x(2,i),x(3,i),
+     &  v(1,i),v(2,i),v(3,i)
 
-        x(3*i-2)=x(3*i-2)/bohr
-        x(3*i-1)=x(3*i-1)/bohr
-        x(3*i  )=x(3*i  )/bohr
+        x(1,i)=x(1,i)/bohr
+        x(2,i)=x(2,i)/bohr
+        x(3,i)=x(3,i)/bohr
       enddo
-      read(10,*)hxx,dummy,temp
-      read(10,*)temp,hyy,temp
-      read(10,*)temp,temp,hzz
-      hx=hxx/bohr
-      hy=hyy/bohr
-      hz=hzz/bohr
+      read(10,*)h(1,1),h(2,1),h(3,1)
+      read(10,*)h(1,2),h(2,2),h(3,2)
+      read(10,*)h(1,3),h(2,3),h(3,3)
+      h=h/bohr
       close(10)
 !ファイルの読み込み
 
-      filename2='out000.xyz'
-      k=0
-      pext=1.01325d-4
-      L=hx
-      vL=0.d0
-      W=1.d8
-
-
 !計算start    
-      call pot (f,dfdx,x,n,hx,hy,hz,virial)
-      ekin=0d0
-      do j=1,3*n
-          ekin=ekin+0.5d0*amass*v(j)**2
-      enddo
-      Tk=ekin*2d0/(3d0*dble(n))*27.2116*11605d0
-      p=(n*kb*Tk+virial/3.d0)/(hx*hy*hz)*29421.d0
-      aL=(p-pext)*L/W
-      vL=vL+0.50*aL*dt  
-!計算start 
-      do i=1,maxstep
-        Treg=50d0     
-!        if (i<(Treg-50d00)*200)then
-!         Treg=50d0+0.005*i
-!        endif
+      kin=0d0
+        do j=1,n
+          kin=kin+0.5d0*amass*
+     &     (v(1,j)**2+v(2,j)**2+v(3,j)**2)
+        enddo
+        tk=kin*2d0/(3d0*dble(n))*
+     &     27.2116*11605d0
+      write(*,*)tk
+      write(*,*)n
+      call pot (f,dfdx,x,n,h,virial,rmin) ! mt:metoric tensor
+      call inverse_mass(h,h_inver,vol,mt,mt_inver,sgm)
+      call press(v,n,vol,p,virial)
 
+      do i=1,n
+       s(:,i)=matmul(h_inver,x(:,i)) 
+       vs(:,i)=matmul(h_inver,v(:,i))
+      enddo
+    
+      dmt=matmul(transpose(vh),h)+matmul(transpose(h),vh) !metoricteosorの時間微分
+      as=matmul(h_inver,dfdx)/amass-matmul(mt_inver,(matmul(dmt,vs)))
+      ah=matmul((p-pext),sgm)/W
+
+      do istep=1,maxstep
+        Treg=50d0
         sigma=sqrt(kb*Treg/amass*(1d0-exp(-gamma*dt)**2))
 
-        do j=1,3*n
-          v(j)=v(j)+(dt/2d0)*(dfdx(j)/amass)
+        do i=1,n
+          vs(:,i)=vs(:,i)+0.5d0*dt*as(:,i)
         enddo
+        vh=vh+0.5d0*dt*ah
+  
+!位置の半ステップ更新        
+        do i=1,n
+         s(:,i)=s(:,i)+0.5d0*dt*vs(:,i)
+        enddo
+        h=h+0.5d0*dt*vh
 
-!圧力の計算
-        
-        Lold=L
-        L=L+vL*0.5d0*dt
-        scale=L/Lold
-        hx=hx*scale
-        hy=hy*scale
-        hz=hz*scale
-        do j=1,3*n
-          x(j)=x(j)*scale
-          v(j)=v(j)/scale
+!pbc
+        do j=1,3
+          do i=1,n
+           if(s(j,i) >= 1.d0) s(j,i)=s(j,i)-1.d0
+           if(s(j,i) < 0.d0)  s(j,i)=s(j,i)+1.d0
+          enddo
         enddo
-!位置更新
+!pbc
+
+! langevine の温度制御
+        call inverse_mass(h,h_inver,vol,mt,mt_inver,sgm)
+        x=matmul(h,s)
+        v=matmul(h,vs)
         do j=1,n
-          x(3*j-2)=x(3*j-2)+0.5d0*dt*v(3*j-2)
-          x(3*j-1)=x(3*j-1)+0.5d0*dt*v(3*j-1)
-          x(3*j  )=x(3*j  )+0.5d0*dt*v(3*j  )
-        enddo  
-!
-
-        do j=1,3*n
-          v(j)=exp(-gamma*dt)*v(j)+sigma*gauss()
+           v(1,j)=exp(-gamma*dt)*v(1,j)+sigma*gauss()
+           v(2,j)=exp(-gamma*dt)*v(2,j)+sigma*gauss()
+           v(3,j)=exp(-gamma*dt)*v(3,j)+sigma*gauss()
+           vs(:,j)=matmul(h_inver,v(:,j))
         enddo
+! langevine
 
-        Lold=L
-        L=L+vL*0.5d0*dt
-        scale=L/Lold
-        hx=hx*scale
-        hy=hy*scale
-        hz=hz*scale
-        do j=1,3*n
-          x(j)=x(j)*scale
-          v(j)=v(j)/scale
+!位置の半ステップ更新
+        do i=1,n
+         s(:,i)=s(:,i)+0.5d0*dt*vs(:,i)
         enddo
+        h=h+0.5d0*dt*vh
 
-!位置更新
-        do j=1,n
-          x(3*j-2)=x(3*j-2)+0.5d0*dt*v(3*j-2)          
-          x(3*j-1)=x(3*j-1)+0.5d0*dt*v(3*j-1)
-          x(3*j  )=x(3*j  )+0.5d0*dt*v(3*j  )
-        enddo  
-!
-
-!周期境界条件
-        do j=1,n
-          if (x(3*j-2).gt.hx) then
-            x(3*j-2)=x(3*j-2)-hx
-          else if (x(3*j-2).lt.0d0) then
-            x(3*j-2)=x(3*j-2)+hx
-          endif 
-          if (x(3*j-1).gt.hy) then
-            x(3*j-1)=x(3*j-1)-hy
-          else if (x(3*j-1).lt.0d0) then
-            x(3*j-1)=x(3*j-1)+hy
-          endif
-          if (x(3*j  ).gt.hz) then
-            x(3*j  )=x(3*j  )-hz
-          else if (x(3*j  ).lt.0d0) then
-            x(3*j  )=x(3*j  )+hz
-          endif
+!pbc
+        do j=1,3
+          do i=1,n
+           if(s(j,i) >= 1.d0) s(j,i)=s(j,i)-1.d0
+           if(s(j,i) < 0.d0)  s(j,i)=s(j,i)+1.d0
+          enddo
         enddo
-!周期境界条件
+!pbc
 
-        call pot(f,dfdx,x,n,hx,hy,hz,virial)
-        do j=1,3*n
-          v(j)=v(j)+(dt/2d0)*(dfdx(j)/amass)
-        enddo
+        x=matmul(h,s)
+        v=matmul(h,vs)+matmul(vh,s)
 
+        call pot(f,dfdx,x,n,h,virial,rmin)
+        call inverse_mass(h,h_inver,vol,mt,mt_inver,sgm)
+        call press(v,n,vol,p,virial)
 
-!温度圧力計算        
-        ekin=0d0
-        do j=1,3*n
-          ekin=ekin+0.5d0*amass*v(j)**2
-        enddo
-        Tk=ekin*2d0/(3d0*dble(n))*
-     &    27.2116*11605d0
-        T(i)=Tk
-        p=(n*kb*Tk+virial/3.d0)/(hx*hy*hz)*29421.d0
-        gpa(i)=p
-        aL=(p-pext)*L/W
-        vL=vL+0.5d0*aL*dt
-!温度圧力計算        
+      dmt=matmul(transpose(vh),h)+matmul(transpose(h),vh)
+      as=matmul(h_inver,dfdx)/amass-matmul(mt_inver,(matmul(dmt,vs)))
+      ah=matmul((p-pext),sgm)/W
 
+      do i=1,n
+       vs(:,i)=vs(:,i)+0.5d0*dt*as(:,i)
+      enddo
+      vh=vh+0.5d0*dt*ah      
+     
 !ファイルの書き出し
-        if(mod(i,100).eq.0)then
+        if(mod(istep,100).eq.0)then
           k=k+1
           write(filename2(4:6),'(i3.3)')k
 
           open(11,file=filename2)
           write(11,*)n
           write(11,'(a,3(3e15.7),a,a)')
-     &       'Lattice="',hx*bohr,0.0,0.0,0.0,hy*bohr,
-     &           0.0,0.0,0.0,hz*bohr,'" ',
+     &       'Lattice="',h(1,1)*bohr,h(2,1)*bohr,h(3,1)*bohr,
+     &                   h(1,2)*bohr,h(2,2)*bohr,h(3,2)*bohr,
+     &                   h(1,3)*bohr,h(2,3)*bohr,h(3,3)*bohr,'" ',
      &       'Properties=species:S:1:id:I:1:pos:R:3:tempK:R:1'
            do m=1,n
-            tempK=amass/2*(v(3*m-2)**2+v(3*m-1)**2+v(3*m)**2)
-     &        *27.2116*11605d0
             write(11,'(a2,i5,4e15.7)')lsp(m),m,
-     &       x(3*m-2)*bohr,x(3*m-1)*bohr,x(3*m)*bohr,tempK
+     &       x(1,m)*bohr,x(2,m)*bohr,x(3,m)*bohr,0d0
           enddo
           close(11)
-          TK=ekin*315775.0d0/(1.5d0*n)
         endif
-!ここまで
-      write(*,*) Tk,p
+!ファイルへの書き出し 
 
-      enddo    
+
+!温度計算    
+        v=matmul(h,vs)  
+        kin=0d0
+        do j=1,n
+          kin=kin+0.5d0*amass*
+     &     (v(1,j)**2+v(2,j)**2+v(3,j)**2)
+        enddo
+        tk=kin*2d0/(3d0*dble(n))*
+     &     27.2116*11605d0
+!温度計算 
  
+        write(*,*) istep,p(1,1)*29421d0,ah(1,1),vh(1,1),h(1,1),tk,rmin
+        hx(istep)=(h(1,1)+h(2,2)+h(3,3))/3.d0
+        t(istep)=tk
+        gpa(istep)=p(1,1)*29421d0
 
-!温度のグラフ      
+      enddo
+
+!グラフ      
       open (12,file='t.dat')
       do i=1,maxstep
-        write(12,*) T(i),gpa(i)
+        write(12,*) gpa(i),t(i),hx(i)
       enddo
       close(12)
-!ここまで
+!グラフ
 
-      endprogram 
+!kiroku
+      call kiroku(h,n,bohr,x,v)
+!kiroku
+
+      end program pbc_lv_pr
+
 
 !linked cell
-      subroutine pot(f,dfdx,x,n,hx,hy,hz,virial)
-      implicit real*8(a-h,o-z)
-      integer mx,my,mz,hx_lc,hy_lc,hz_lc
-      real*8 x(3*n),dfdx(3*n),f,factor
-      integer hyz_lc,hxyz_lc,i
-      integer ishiftx,ishifty,ishiftz
+      subroutine pot(f,dfdx,x,n,h,virial,rmin)
+      implicit none
+      integer mx,my,mz,hx_lc,hy_lc,hz_lc,m1,m
+      real*8 x(3,n),dfdx(3,n),f,factor,h(3,3),virial(3,3)
+      real*8 sgm,eps,sgm12,sgm6,cutoff,rij2
+      integer hyz_lc,hxyz_lc,i,m1x,m1y,m1z
+      integer ishiftx,ishifty,ishiftz,j,k,l,n
+      integer kuxmax,kuymax,kuzmax,kux,kuy,kuz
       parameter(sgm=3.4d0/0.5292d0)
       parameter(eps=120d0/11605d0/27.2116d0)
       parameter(sgm12=sgm**12,sgm6=sgm**6)
       parameter(cutoff=2.5d0*sgm)
       integer,allocatable,dimension(:):: lshd,lscl
-      real*8 virial
-      write(*,*)cutoff,sgm,hx
+      real*8 rij(3),rmin,hx_cell,hy_cell,hz_cell
 
-      virial=0.d0
-      do i=1,3*n
-        dfdx(i)=0d0
-      enddo
+      dfdx=0d0
+      rmin=1000d0
+      virial=0d0
 
-      hx_lc=max(int(hx/cutoff),1) !x座標のセル数
-      hy_lc=max(int(hy/cutoff),1)
-      hz_lc=max(int(hz/cutoff),1)
+      hx_lc=max(int(h(1,1)/cutoff),1) !x座標のセル数
+      hy_lc=max(int(h(2,2)/cutoff),1)
+      hz_lc=max(int(h(3,3)/cutoff),1)
       hyz_lc=hy_lc*hz_lc     !セルのyz平面の数
       hxyz_lc=hyz_lc*hx_lc     !セルの総数
-      hx_cell=hx/hx_lc     !各方向のセルの長さ
-      hy_cell=hy/hy_lc
-      hz_cell=hz/hz_lc
+      hx_cell=h(1,1)/hx_lc     !各方向のセルの長さ
+      hy_cell=h(2,2)/hy_lc
+      hz_cell=h(3,3)/hz_lc
       allocate(lshd(hxyz_lc),lscl(n))
       lshd=0
       do i=1,n
-        if(x(3*i-2).lt.0d0 .or. x(3*i-2).ge.hx .or.
-     &     x(3*i-1).lt.0d0 .or. x(3*i-1).ge.hy .or.
-     &     x(3*i  ).lt.0d0 .or. x(3*i  ).ge.hz )then
-          write(*,*)'Error! i, x,y,z=',
-     &     i,x(3*i-2),x(3*i-1),x(3*i)
-          stop
-        endif
-        mx=int(x(3*i-2)/hx_cell)
-        my=int(x(3*i-1)/hy_cell)
-        mz=int(x(3*i  )/hz_cell)
+    !    if(x(1,i).lt.0d0 .or. x(1,i).ge.h(1,1) .or.
+    ! &     x(2,i).lt.0d0 .or. x(2,i).ge.h(2,2) .or.
+    ! &     x(3,i).lt.0d0 .or. x(3,i).ge.h(3,3))then
+    !      write(*,*)'Error! i, x,y,z=',
+    ! &     i,x(1,i),x(2,i),x(3,i),h(1,1),s
+    !      stop
+    !    endif
+        mx=int(x(1,i)/hx_cell)
+        my=int(x(2,i)/hy_cell)
+        mz=int(x(3,i)/hz_cell)
         mx=min(max(mx,0),hx_lc-1)
         my=min(max(my,0),hy_lc-1)
         mz=min(max(mz,0),hz_lc-1)
@@ -248,9 +250,9 @@
         lshd(m)=i
       enddo
 
-      kuxmax=int(cutoff/hx+1)
-      kuymax=int(cutoff/hy+1)
-      kuzmax=int(cutoff/hz+1)
+      kuxmax=int(cutoff/h(1,1)+1)
+      kuymax=int(cutoff/h(2,2)+1)
+      kuzmax=int(cutoff/h(3,3)+1)
       f=0d0
       
       do mz=0,hz_lc-1
@@ -274,21 +276,27 @@
             j=lshd(m1)
             do while(j>0)
               if (i<j) then
-                rijx=x(3*i-2)-(x(3*j-2)+ishiftx*hx)
-                rijy=x(3*i-1)-(x(3*j-1)+ishifty*hy)
-                rijz=x(3*i  )-(x(3*j  )+ishiftz*hz)
-                rij2=rijx**2+rijy**2+rijz**2
+                rij(1)=x(1,i)-(x(1,j)+ishiftx*h(1,1))
+                rij(2)=x(2,i)-(x(2,j)+ishifty*h(2,2))
+                rij(3)=x(3,i)-(x(3,j)+ishiftz*h(3,3))
+                rij2=rij(1)**2+rij(2)**2+rij(3)**2
+                rmin=min(rmin,sqrt(rij2))
                 if (rij2<cutoff**2) then
                   f=f+4d0*eps*(sgm12/rij2**6-sgm6/rij2**3)
                   factor=4d0*eps*
      &            (-12d0*sgm12/rij2**7+6d0*sgm6/rij2**4)
-                  dfdx(3*i-2)=dfdx(3*i-2)-factor*rijx
-                  dfdx(3*i-1)=dfdx(3*i-1)-factor*rijy
-                  dfdx(3*i  )=dfdx(3*i  )-factor*rijz
-                  dfdx(3*j-2)=dfdx(3*j-2)+factor*rijx
-                  dfdx(3*j-1)=dfdx(3*j-1)+factor*rijy
-                  dfdx(3*j  )=dfdx(3*j  )+factor*rijz
-                  virial=virial-factor*rij2
+                  dfdx(1,i)=dfdx(1,i)-factor*rij(1)
+                  dfdx(2,i)=dfdx(2,i)-factor*rij(2)
+                  dfdx(3,i)=dfdx(3,i)-factor*rij(3)
+                  dfdx(1,j)=dfdx(1,j)+factor*rij(1)
+                  dfdx(2,j)=dfdx(2,j)+factor*rij(2)
+                  dfdx(3,j)=dfdx(3,j)+factor*rij(3)
+
+                  do k=1,3
+                  do l=1,3
+                   virial(k,l)=virial(k,l)-factor*rij(k)*rij(l)
+                  enddo
+                  enddo
                 end if
               endif
               j=lscl(j)
@@ -302,8 +310,8 @@
       enddo
       enddo
       deallocate(lshd,lscl)
+      return
       end      
-
 
 !subrutine ishift  
       subroutine get_ishift(lc,i,ishift)
@@ -335,6 +343,96 @@
       call random_number(u2)
       gauss=sqrt(-2.d0*log(u1))
      & *cos(2.d0*3.14159265d0*u2) 
-      
       return
       end
+
+!逆行列と体積
+      subroutine inverse_mass(h,h_inver,vol,mt,mt_inver,sgm)
+      implicit none
+      real*8 h(3,3)
+      real*8 h_inver(3,3)
+      real*8 mt(3,3),mt_inver(3,3),mt_vol
+      real*8 vol,sgm(3,3)
+
+      vol=h(1,1)*(h(2,2)*h(3,3)-h(2,3)*h(3,2))
+     &   -h(1,2)*(h(2,1)*h(3,3)-h(2,3)*h(3,1))
+     &   +h(1,3)*(h(2,1)*h(3,2)-h(2,2)*h(3,1))
+
+      h_inver(1,1)=(h(2,2)*h(3,3)-h(2,3)*h(3,2))/vol
+      h_inver(1,2)=(h(2,3)*h(3,1)-h(2,1)*h(3,3))/vol
+      h_inver(1,3)=(h(2,1)*h(3,2)-h(3,1)*h(2,2))/vol
+      h_inver(2,1)=(h(1,3)*h(3,2)-h(1,2)*h(3,3))/vol
+      h_inver(2,2)=(h(1,1)*h(3,3)-h(1,3)*h(3,1))/vol
+      h_inver(2,3)=(h(1,2)*h(3,1)-h(1,1)*h(3,2))/vol
+      h_inver(3,1)=(h(1,2)*h(2,3)-h(1,3)*h(2,2))/vol
+      h_inver(3,2)=(h(1,3)*h(2,1)-h(1,1)*h(2,3))/vol
+      h_inver(3,3)=(h(1,1)*h(2,2)-h(1,2)*h(2,1))/vol
+
+      mt=matmul(transpose(h),h)
+      mt_vol=mt(1,1)*(mt(2,2)*mt(3,3)-mt(2,3)*mt(3,2))
+     &   -mt(1,2)*(mt(2,1)*mt(3,3)-mt(2,3)*mt(3,1))
+     &   +mt(1,3)*(mt(2,1)*mt(3,2)-mt(2,2)*mt(3,1))
+      mt_inver(1,1)=(mt(2,2)*mt(3,3)-mt(2,3)*mt(3,2))/mt_vol
+      mt_inver(1,2)=(mt(2,3)*mt(3,1)-mt(2,1)*mt(3,3))/mt_vol
+      mt_inver(1,3)=(mt(2,1)*mt(3,2)-mt(3,1)*mt(2,2))/mt_vol
+      mt_inver(2,1)=(mt(1,3)*mt(3,2)-mt(1,2)*mt(3,3))/mt_vol
+      mt_inver(2,2)=(mt(1,1)*mt(3,3)-mt(1,3)*mt(3,1))/mt_vol
+      mt_inver(2,3)=(mt(1,2)*mt(3,1)-mt(1,1)*mt(3,2))/mt_vol
+      mt_inver(3,1)=(mt(1,2)*mt(2,3)-mt(1,3)*mt(2,2))/mt_vol
+      mt_inver(3,2)=(mt(1,3)*mt(2,1)-mt(1,1)*mt(2,3))/mt_vol
+      mt_inver(3,3)=(mt(1,1)*mt(2,2)-mt(1,2)*mt(2,1))/mt_vol
+
+      sgm(1,1)=(h(2,2)*h(3,3)-h(2,3)*h(3,2))
+      sgm(1,2)=(h(1,3)*h(3,2)-h(1,2)*h(3,3))
+      sgm(1,3)=(h(1,2)*h(2,3)-h(1,3)*h(2,2))
+      sgm(2,1)=(h(2,3)*h(3,1)-h(2,1)*h(3,3))
+      sgm(2,2)=(h(1,1)*h(3,3)-h(1,3)*h(3,1))
+      sgm(2,3)=(h(1,3)*h(2,1)-h(1,1)*h(2,3))
+      sgm(3,1)=(h(2,1)*h(3,2)-h(2,2)*h(3,1))
+      sgm(3,2)=(h(1,2)*h(3,1)-h(1,1)*h(3,2))
+      sgm(3,3)=(h(1,1)*h(2,2)-h(1,2)*h(2,1))
+
+      return
+      end subroutine
+
+! call press      
+      subroutine press(v,n,vol,p,virial)
+      implicit none
+      integer n,l,m
+      real*8 v(3,n),p(3,3)
+      real*8 vol
+      real*8 amass,a(3,3),virial(3,3)
+
+      parameter(amass=40d0*1836d0)
+
+      a=amass*matmul(v,transpose(v))
+      do l=1,3
+      do m=1,3
+       p(l,m)=(a(l,m)+virial(l,m))/vol
+      enddo
+      enddo
+!      p=1.d0/vol*(a+matmul(dfdx,transpose(x)))
+
+      return
+      end subroutine
+
+! kiroku
+      subroutine kiroku(h,n,bohr,x,v)
+      implicit none
+      real*8 h(3,3),bohr,x(3,n),v(3,n)
+      integer i,n
+
+      open(10,file='lv50_pr1d-4_8788.dat')
+      write(10,*)n
+      do i=1,n
+       write(10,'(a,i5,6e15.7)') 'Ar',i,
+     &       x(1,i)*bohr,x(2,i)*bohr,x(3,i)*bohr,
+     &       v(1,i),v(2,i),v(3,i)
+      enddo
+      write(10,'(3e24.15)')h(1,1)*bohr,h(2,1)*bohr,h(3,1)*bohr
+      write(10,'(3e24.15)')h(1,2)*bohr,h(2,2)*bohr,h(3,2)*bohr
+      write(10,'(3e24.15)')h(1,3)*bohr,h(2,3)*bohr,h(3,3)*bohr
+      close(10)
+
+      return
+      end 

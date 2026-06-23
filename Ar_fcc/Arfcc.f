@@ -2,7 +2,7 @@
       implicit none
       integer nmax,n,i,j,k,l,inc,m,bs,rec,aa
       real*8 bohr,sgm,amass,ekin,Tk,a
-      parameter (nmax=30000)
+      parameter (nmax=800000)
       parameter(bohr=0.5292d0)
       parameter(sgm=3.4d0/bohr) 
       parameter(amass=40d0*1836d0)
@@ -16,7 +16,7 @@
       write(*,*)cunit
 
 ! boxsize
-      bs=10
+      bs=13
 ! boxsize        
       hxx=bs*cunit*bohr
       hyy=bs*cunit*bohr
@@ -51,6 +51,7 @@
       enddo
       enddo
       n=inc
+      write(*,*)n
 
 ! 初速度      
       do i=1,n
@@ -58,7 +59,7 @@
         v(3*i-1)=0d0
         v(3*i  )=0d0
       enddo
-      rec=1
+      rec=0
       if (rec==1) then
        open(10,file='final50x.dat')
        do i=1,3*n
