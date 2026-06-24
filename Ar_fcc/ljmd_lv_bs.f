@@ -1,7 +1,7 @@
       program ljmd_langevin_berendsen_lc_pbc
       implicit none
       integer nmax,rec
-      parameter(nmax=50000)
+      parameter(nmax=5000000)
       integer i,j,k,m,n,maxstep,itemp
       real*8 x(3*nmax),v(3*nmax),dfdx(3*nmax)
       real*8 f,ekin,dt
@@ -12,7 +12,7 @@
       parameter(amass=40d0*1836d0)
       parameter(bohr=0.5292d0)
 ! time_step      
-      parameter(maxstep=10000)
+      parameter(maxstep=2000)
       real*8 T(maxstep)
       real*8 Treg(maxstep)
       real*8 gpa(maxstep)
@@ -38,8 +38,9 @@
       preg=0.0001d0
    
 
-!ファイルの読みこみ      
-      open(10,file='init.dat')
+!ファイルの読みこみ     
+      write(*,*)'start' 
+      open(10,file='init_13500_v0_x0.dat')
       read(10,*)n
       do i=1,n
         read(10,*)lsp(i),itemp,
@@ -57,6 +58,7 @@
       hy=hyy/bohr
       hz=hzz/bohr
       close(10)
+      write(*,*)n
 !ファイルの読み込み
 
       filename2='out000.xyz'
@@ -65,7 +67,7 @@
 !計算start      
       call pot(f,dfdx,x,n,hx,hy,hz,virial)
       do i=1,maxstep
-        Treg(i)=50d0
+        Treg(i)=10d0
 
         kb=1.d0/(27.2116*11605d0)
         sigma=sqrt(kb*Treg(i)/amass*
@@ -183,24 +185,25 @@
            do m=1,n
             tempK=amass/2*(v(3*m-2)**2+v(3*m-1)**2+v(3*m)**2)
      &        *27.2116*11605d0
-            write(11,'(a2,i5,4e15.7)')lsp(m),m,
+            write(11,'(a2,1x,i5,4e15.7)')'Ar',m,
      &       x(3*m-2)*bohr,x(3*m-1)*bohr,x(3*m)*bohr,tempK
           enddo
           close(11)
           TK=ekin*315775.0d0/(1.5d0*n)
         endif
+
 !ファイルの書き出し
         write(*,*) Tk,p
       enddo
 
  
 !kiroku
-      rec=0
+      rec=1
       if (rec==1) then
-       open(10,file='lv50k_bs0.001gpa.dat')
+       open(10,file='lv10_bs1d-4.dat')
        write(10,*)n
        do i=1,n
-        write(10,'(a,i5,6e15.7)') 'Ar',i,
+        write(10,'(a,1x,i5,6e15.7)') 'Ar',i,
      &       x(3*i-2)*bohr,x(3*i-1)*bohr,x(3*i)*bohr,
      &       v(3*i-2),v(3*i-1),v(3*i)
        enddo
@@ -214,7 +217,7 @@
 !温度のグラフ      
       open (12,file='t.dat')
       do i=1,maxstep
-        write(12,*) T(i),gpa(i)*10000
+        write(12,*) T(i),gpa(i)
       enddo
       close(12)
 !ここまで

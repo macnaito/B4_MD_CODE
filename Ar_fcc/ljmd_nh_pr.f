@@ -2,7 +2,7 @@
 ! PBC lcl lengevine（BAOAB) Parrinello-Rahman
       implicit none
       integer nmax
-      parameter(nmax=10000)
+      parameter(nmax=100000)
       integer i,j,k,m,n,maxstep,itemp,istep
       real*8 x(3,nmax),v(3,nmax),dfdx(3,nmax),f,dt
       real*8 h(3,3),vol,amass,bohr
@@ -14,22 +14,20 @@
       real*8 virial(3,3),p(3,3),kb,pext(3,3)
       real*8 s(3,nmax),ah(3,3),vh(3,3),h_inver(3,3),dmt(3,3)
       real*8 vs(3,nmax),as(3,nmax),mt(3,3),mt_inver(3,3)
-      real*8 gamma,Treg,sigma,gauss
-      external gauss
+      real*8 Treg,tau,gkbt,Q,xi,G(3,3)
+ 
       
 ! time_step      
-      parameter(maxstep=5000)
+      parameter(maxstep=10000)
       real*8 gpa(maxstep)
       real*8 t(maxstep)
       real*8 hx(maxstep)
-      real*8 vhx(maxstep)
-      real*8 ahx(maxstep)
     
 
       dt=41d0*5d0
-      gamma=1.d-3
       kb=1.d0/(27.2116*11605d0)
-      W=5.d6
+      W=1.d10
+      xi=0d0
 
       pext=0d0
       pext(1,1)=1.01325d-4/29421d0
@@ -38,11 +36,9 @@
       filename2='out000.xyz'
       k=0
       vh=0d0
-      
 
 !ファイルの読みこみ      
- !     open(10,file='lv1_pr1d-4_8788_5000.dat')
-      open(10,file='lv10_pr1d-4_8788.dat')
+      open(10,file='nh20-30_pr1d-4.dat')
       read(10,*)n
       do i=1,n
         read(10,*)lsp(i),itemp,
@@ -60,13 +56,19 @@
       close(10)
 !ファイルの読み込み
 
+      Treg=20d0
+      tau=10d0*dt
+      gkbt=(3.d0*dble(n))*Treg*kb
+      Q=gkbt*tau**2
+
+
 !計算start    
       kin=0d0
-        do j=1,n
+      do j=1,n
           kin=kin+0.5d0*amass*
      &     (v(1,j)**2+v(2,j)**2+v(3,j)**2)
-        enddo
-        tk=kin*2d0/(3d0*dble(n))*
+      enddo
+      tk=kin*2d0/(3d0*dble(n))*
      &     27.2116*11605d0
       write(*,*)tk
       write(*,*)n
@@ -75,62 +77,47 @@
       call press(v,n,vol,p,virial)
       write(*,*)p(1,1)*29421d0
       
-
       do i=1,n
        s(:,i)=matmul(h_inver,x(:,i)) 
        vs(:,i)=matmul(h_inver,v(:,i))
       enddo
-    
-      dmt=matmul(transpose(vh),h)+matmul(transpose(h),vh) !metoricteosorの時間微分
-      as=matmul(h_inver,dfdx)/amass-matmul(mt_inver,(matmul(dmt,vs)))
-      ah=matmul((p-pext),sgm)/W
 
+! ここからloop
       do istep=1,maxstep
-        if (istep<=2000) then
-         Treg=10d0+0.005d0*istep
+
+        Treg=30d0
+        if (istep<=5000) then
+         Treg=Treg+0.002d0*istep
         else
-         Treg=20d0
+         Treg=Treg+10d0
         endif
+        gkbt=(3.d0*dble(n))*Treg*kb
+        Q=gkbt*tau**2
 
-        sigma=sqrt(kb*Treg/amass*(1d0-exp(-gamma*dt)**2))
-
-        do i=1,n
-          vs(:,i)=vs(:,i)+0.5d0*dt*as(:,i)
-        enddo
-        vh=vh+0.5d0*dt*ah
-  
-!位置の半ステップ更新        
-        do i=1,n
-         s(:,i)=s(:,i)+0.5d0*dt*vs(:,i)
-        enddo
-        h=h+0.5d0*dt*vh
-
-!pbc
-        do j=1,3
-          do i=1,n
-           if(s(j,i) >= 1.d0) s(j,i)=s(j,i)-1.d0
-           if(s(j,i) < 0.d0)  s(j,i)=s(j,i)+1.d0
-          enddo
-        enddo
-!pbc
-
-! langevine の温度制御
-        call inverse_mass(h,h_inver,vol,mt,mt_inver,sgm)
-        x=matmul(h,s)
-        v=matmul(h,vs)
+        kin=0d0
         do j=1,n
-           v(1,j)=exp(-gamma*dt)*v(1,j)+sigma*gauss()
-           v(2,j)=exp(-gamma*dt)*v(2,j)+sigma*gauss()
-           v(3,j)=exp(-gamma*dt)*v(3,j)+sigma*gauss()
-           vs(:,j)=matmul(h_inver,v(:,j))
+          kin=kin+0.5d0*amass*
+     &     (v(1,j)**2+v(2,j)**2+v(3,j)**2)
         enddo
-! langevine
+        xi=xi+0.5d0*dt*(2.d0*kin-gkbt)/Q
 
-!位置の半ステップ更新
+
+        v=matmul(h,vs)
+        G=matmul(vh,h_inver)
         do i=1,n
-         s(:,i)=s(:,i)+0.5d0*dt*vs(:,i)
+          v(:,i)=v(:,i)+0.5d0*dt*(dfdx(:,i)/amass)
+     &             -0.5d0*dt*xi*v(:,i)
+     &             -0.5d0*dt*matmul(G,v(:,i))
+          vs(:,i)=matmul(h_inver,v(:,i))
         enddo
-        h=h+0.5d0*dt*vh
+        vh=vh+0.5d0*dt*matmul((p-pext),sgm)/W
+
+  
+!位置の更新        
+        do i=1,n
+         s(:,i)=s(:,i)+dt*vs(:,i)
+        enddo
+        h=h+dt*vh
 
 !pbc
         do j=1,3
@@ -140,6 +127,8 @@
           enddo
         enddo
 !pbc
+
+
 
         x=matmul(h,s)
         v=matmul(h,vs)
@@ -148,14 +137,22 @@
         call inverse_mass(h,h_inver,vol,mt,mt_inver,sgm)
         call press(v,n,vol,p,virial)
 
-      dmt=matmul(transpose(vh),h)+matmul(transpose(h),vh)
-      as=matmul(h_inver,dfdx)/amass-matmul(mt_inver,(matmul(dmt,vs)))
-      ah=matmul((p-pext),sgm)/W
+        kin=0d0
+        do j=1,n
+          kin=kin+0.5d0*amass*
+     &     (v(1,j)**2+v(2,j)**2+v(3,j)**2)
+        enddo
+        xi=xi+0.5d0*dt*(2.d0*kin-gkbt)/Q
 
-      do i=1,n
-       vs(:,i)=vs(:,i)+0.5d0*dt*as(:,i)
-      enddo
-      vh=vh+0.5d0*dt*ah      
+
+        v=matmul(h,vs)
+        do i=1,n
+         v(:,i)=v(:,i)+0.5d0*dt*(dfdx(:,i)/amass)
+     &             -0.5d0*dt*xi*v(:,i)
+     &             -0.5d0*dt*matmul(G,v(:,i))
+         vs(:,i)=matmul(h_inver,v(:,i))
+        enddo
+        vh=vh+0.5d0*dt*matmul((p-pext),sgm)/W    
      
 !ファイルの書き出し
         if(mod(istep,100).eq.0)then
@@ -170,7 +167,7 @@
      &                   h(1,3)*bohr,h(2,3)*bohr,h(3,3)*bohr,'" ',
      &       'Properties=species:S:1:id:I:1:pos:R:3:tempK:R:1'
            do m=1,n
-            write(11,'(a2,i5,4e15.7)')lsp(m),m,
+            write(11,'(a2,1x,i5,4e15.7)')lsp(m),m,
      &       x(1,m)*bohr,x(2,m)*bohr,x(3,m)*bohr,0d0
           enddo
           close(11)
@@ -189,19 +186,18 @@
      &     27.2116*11605d0
 !温度計算 
  
-        write(*,*) istep,p(1,1)*29421d0,ah(1,1),vh(1,1),h(1,1),tk,rmin
+        write(*,*) istep,p(1,1)*29421d0,vh(1,1),h(1,1),tk,rmin
         hx(istep)=(h(1,1)+h(2,2)+h(3,3))/3.d0
         t(istep)=tk
         gpa(istep)=p(1,1)*29421d0
-        vhx(istep)=vh(1,1)
-        ahx(istep)=ah(1,1)
+
 
       enddo
 
 !グラフ      
       open (12,file='t.dat')
       do i=1,maxstep
-        write(12,*) gpa(i),t(i),hx(i),vhx(i),ahx(i)
+        write(12,*) gpa(i),t(i),hx(i)
       enddo
       close(12)
 !グラフ
@@ -434,10 +430,10 @@
       real*8 h(3,3),bohr,x(3,n),v(3,n)
       integer i,n
 
-      open(10,file='lv20_pr1d-4_8788.dat')
+      open(10,file='nh30-40_pr1d-4.dat')
       write(10,*)n
       do i=1,n
-       write(10,'(a,i5,6e15.7)') 'Ar',i,
+       write(10,'(a,1x,i5,6e15.7)') 'Ar',i,
      &       x(1,i)*bohr,x(2,i)*bohr,x(3,i)*bohr,
      &       v(1,i),v(2,i),v(3,i)
       enddo

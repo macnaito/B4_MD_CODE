@@ -81,7 +81,6 @@
           v(j)=v(j)+(dt/2d0)*(dfdx(j)/amass)
         enddo
 
-!圧力の計算
         
         Lold=L
         L=L+vL*0.5d0*dt

@@ -16,7 +16,7 @@
       write(*,*)cunit
 
 ! boxsize
-      bs=13
+      bs=15
 ! boxsize        
       hxx=bs*cunit*bohr
       hyy=bs*cunit*bohr
@@ -123,7 +123,7 @@
       open(10,file='init.dat')
       write(10,*)n
       do i=1,n
-        write(10,'(a,i5,6e15.7)') 'Ar',i,
+        write(10,'(a,i5,6e15.7)') 'Ar  ',i,
      &       x(3*i-2)*bohr,x(3*i-1)*bohr,x(3*i)*bohr,
      &       v(3*i-2),v(3*i-1),v(3*i)
       enddo
