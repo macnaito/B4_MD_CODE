@@ -12,7 +12,7 @@
       parameter(amass=40d0*1836d0)
       parameter(bohr=0.5292d0)
 ! time_step      
-      parameter(maxstep=2000)
+      parameter(maxstep=5000)
       real*8 T(maxstep)
       real*8 Treg(maxstep)
       real*8 gpa(maxstep)
@@ -67,7 +67,7 @@
 !計算start      
       call pot(f,dfdx,x,n,hx,hy,hz,virial)
       do i=1,maxstep
-        Treg(i)=10d0
+        Treg(i)=50d0
 
         kb=1.d0/(27.2116*11605d0)
         sigma=sqrt(kb*Treg(i)/amass*
@@ -198,9 +198,9 @@
 
  
 !kiroku
-      rec=1
+      rec=0
       if (rec==1) then
-       open(10,file='lv10_bs1d-4.dat')
+       open(10,file='lv50_bs1d-4.dat')
        write(10,*)n
        do i=1,n
         write(10,'(a,1x,i5,6e15.7)') 'Ar',i,

@@ -70,7 +70,7 @@
      &     27.2116*11605d0
       write(*,*)tk
       write(*,*)n
-      call pot (istep,f,dfdx,x,n,h,virial,rmin) ! mt:metoric tensor
+      call pot (istep,f,dfdx,x,s,n,h,virial,rmin) ! mt:metoric tensor
       call inverse_mass(h,h_inver,vol,mt,mt_inver,sgm)
       call press(v,n,vol,p,virial)
       write(*,*)p(1,1)*29421d0
@@ -144,7 +144,7 @@
         x=matmul(h,s)
         v=matmul(h,vs)
 
-        call pot(istep,f,dfdx,x,n,h,virial,rmin)
+        call pot(istep,f,dfdx,x,s,n,h,virial,rmin)
         call inverse_mass(h,h_inver,vol,mt,mt_inver,sgm)
         call press(v,n,vol,p,virial)
 
@@ -214,10 +214,11 @@
 
 
 !linked cell
-      subroutine pot(istep,f,dfdx,x,n,h,virial,rmin)
+      subroutine pot(istep,f,dfdx,x,s,n,h,virial,rmin)
       implicit none
       integer mx,my,mz,hx_lc,hy_lc,hz_lc,m1,m,istep
       real*8 x(3,n),dfdx(3,n),f,factor,h(3,3),virial(3,3)
+      real*8 s(3,n)
       real*8 sgm,eps,sgm12,sgm6,cutoff,rij2
       integer hyz_lc,hxyz_lc,i,m1x,m1y,m1z
       integer ishiftx,ishifty,ishiftz,j,k,l,n
@@ -234,38 +235,31 @@
       virial=0d0
 
 
-       hx_lc=max(int(h(1,1)/cutoff),1) !x座標のセル数
-       hy_lc=max(int(h(2,2)/cutoff),1)
-       hz_lc=max(int(h(3,3)/cutoff),1)
+       hx_lc=9 !x座標のセル数
+       hy_lc=9
+       hz_lc=9
        hyz_lc=hy_lc*hz_lc     !セルのyz平面の数
        hxyz_lc=hyz_lc*hx_lc     !セルの総数
-       hx_cell=h(1,1)/hx_lc     !各方向のセルの長さ
-       hy_cell=h(2,2)/hy_lc
-       hz_cell=h(3,3)/hz_lc
+       hx_cell=1.d0/hx_lc     !各方向のセルの長さ
+       hy_cell=1.d0/hy_lc
+       hz_cell=1.d0/hz_lc
        allocate(lshd(hxyz_lc),lscl(n))
        lshd=0
        do i=1,n
-    !    if(x(1,i).lt.0d0 .or. x(1,i).ge.h(1,1) .or.
-    ! &     x(2,i).lt.0d0 .or. x(2,i).ge.h(2,2) .or.
-    ! &     x(3,i).lt.0d0 .or. x(3,i).ge.h(3,3))then
-    !      write(*,*)'Error! i, x,y,z=',
-    ! &     i,x(1,i),x(2,i),x(3,i),h(1,1),s
-    !      stop
-    !    endif
-         mx=int(x(1,i)/hx_cell)
-         my=int(x(2,i)/hy_cell)
-         mz=int(x(3,i)/hz_cell)
-         mx=min(max(mx,0),hx_lc-1)
-         my=min(max(my,0),hy_lc-1)
-         mz=min(max(mz,0),hz_lc-1)
+         mx=int(s(1,i)/hx_cell)
+         my=int(s(2,i)/hy_cell)
+         mz=int(s(3,i)/hz_cell)
+!         mx=min(max(mx,0),hx_lc-1)
+!         my=min(max(my,0),hy_lc-1)
+!         mz=min(max(mz,0),hz_lc-1)
          m=mx*hyz_lc+my*hz_lc+mz+1
          lscl(i)=lshd(m)
          lshd(m)=i
         enddo
 
-       kuxmax=int(cutoff/h(1,1)+1)
-       kuymax=int(cutoff/h(2,2)+1)
-       kuzmax=int(cutoff/h(3,3)+1)
+       kuxmax=1
+       kuymax=1
+       kuzmax=1
        f=0d0
       
       do mz=0,hz_lc-1
@@ -289,9 +283,10 @@
             j=lshd(m1)
             do while(j>0)
               if (i<j) then
-                rij(1)=x(1,i)-(x(1,j)+ishiftx*h(1,1))
-                rij(2)=x(2,i)-(x(2,j)+ishifty*h(2,2))
-                rij(3)=x(3,i)-(x(3,j)+ishiftz*h(3,3))
+                rij(1)=s(1,i)-(s(1,j)+ishiftx)
+                rij(2)=s(2,i)-(s(2,j)+ishifty)
+                rij(3)=s(3,i)-(s(3,j)+ishiftz)
+                rij=matmul(h,rij)
                 rij2=rij(1)**2+rij(2)**2+rij(3)**2
                 rmin=min(rmin,sqrt(rij2))
                 if (rij2<cutoff**2) then
@@ -343,19 +338,6 @@
         enddo
       else
       endif
-      return
-      end
-
-!ガウス乱数 box muller 平均０分散１
-      function gauss()
-      implicit none
-      real*8 gauss
-      real*8 u1,u2
-
-      call random_number(u1)
-      call random_number(u2)
-      gauss=sqrt(-2.d0*log(u1))
-     & *cos(2.d0*3.14159265d0*u2) 
       return
       end
 

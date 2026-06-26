@@ -12,9 +12,10 @@
       parameter(bohr=0.5292d0)
       real*8 W,sgm(3,3),tk,kin,rmin
       real*8 virial(3,3),p(3,3),kb,pext(3,3)
-      real*8 s(3,nmax),ah(3,3),vh(3,3),h_inver(3,3),dmt(3,3)
-      real*8 vs(3,nmax),as(3,nmax),mt(3,3),mt_inver(3,3)
+      real*8 s(3,nmax),vh(3,3),h_inver(3,3)
+      real*8 vs(3,nmax),mt(3,3),mt_inver(3,3)
       real*8 Treg,tau,gkbt,Q,xi,G(3,3)
+      real*8 smap
  
       
 ! time_step      
@@ -22,11 +23,12 @@
       real*8 gpa(maxstep)
       real*8 t(maxstep)
       real*8 hx(maxstep)
+      real*8 smagpa(maxstep)
     
 
       dt=41d0*5d0
       kb=1.d0/(27.2116*11605d0)
-      W=1.d10
+      W=5.d5
       xi=0d0
 
       pext=0d0
@@ -38,7 +40,7 @@
       vh=0d0
 
 !ファイルの読みこみ      
-      open(10,file='nh20-30_pr1d-4.dat')
+      open(10,file='lv50_bs1d-4.dat')
       read(10,*)n
       do i=1,n
         read(10,*)lsp(i),itemp,
@@ -63,6 +65,8 @@
 
 
 !計算start    
+
+!温度
       kin=0d0
       do j=1,n
           kin=kin+0.5d0*amass*
@@ -70,23 +74,27 @@
       enddo
       tk=kin*2d0/(3d0*dble(n))*
      &     27.2116*11605d0
-      write(*,*)tk
-      write(*,*)n
-      call pot (istep,f,dfdx,x,n,h,virial,rmin) ! mt:metoric tensor
+!温度
+    
       call inverse_mass(h,h_inver,vol,mt,mt_inver,sgm)
-      call press(v,n,vol,p,virial)
-      write(*,*)p(1,1)*29421d0
-      
       do i=1,n
        s(:,i)=matmul(h_inver,x(:,i)) 
        vs(:,i)=matmul(h_inver,v(:,i))
       enddo
+  
+      
+  
+      call pot (f,dfdx,s,n,h,virial,rmin) ! mt:metoric tensor
+      call inverse_mass(h,h_inver,vol,mt,mt_inver,sgm)
+      call press(v,n,vol,p,virial)
+      write(*,*)p(1,1)*29421d0
+      
 
 ! ここからloop
       do istep=1,maxstep
 
-        Treg=30d0
-        if (istep<=5000) then
+      Treg=50d0
+      if (istep<=5000) then
          Treg=Treg+0.002d0*istep
         else
          Treg=Treg+10d0
@@ -106,11 +114,11 @@
         G=matmul(vh,h_inver)
         do i=1,n
           v(:,i)=v(:,i)+0.5d0*dt*(dfdx(:,i)/amass)
-     &             -0.5d0*dt*xi*v(:,i)
-     &             -0.5d0*dt*matmul(G,v(:,i))
+     &             -0.5d0*dt*xi*v(:,i)    !nose-hoover
+     &             -0.5d0*dt*matmul(G,v(:,i))  !
           vs(:,i)=matmul(h_inver,v(:,i))
         enddo
-        vh=vh+0.5d0*dt*matmul((p-pext),sgm)/W
+        vh=vh+0.5d0*dt*(matmul((p-pext),sgm)/W)
 
   
 !位置の更新        
@@ -129,11 +137,10 @@
 !pbc
 
 
-
         x=matmul(h,s)
         v=matmul(h,vs)
 
-        call pot(istep,f,dfdx,x,n,h,virial,rmin)
+        call pot(f,dfdx,s,n,h,virial,rmin)
         call inverse_mass(h,h_inver,vol,mt,mt_inver,sgm)
         call press(v,n,vol,p,virial)
 
@@ -141,6 +148,8 @@
         do j=1,n
           kin=kin+0.5d0*amass*
      &     (v(1,j)**2+v(2,j)**2+v(3,j)**2)
+          tk=kin*2d0/(3d0*dble(n))*
+     &     27.2116*11605d0
         enddo
         xi=xi+0.5d0*dt*(2.d0*kin-gkbt)/Q
 
@@ -148,8 +157,8 @@
         v=matmul(h,vs)
         do i=1,n
          v(:,i)=v(:,i)+0.5d0*dt*(dfdx(:,i)/amass)
-     &             -0.5d0*dt*xi*v(:,i)
-     &             -0.5d0*dt*matmul(G,v(:,i))
+     &                -0.5d0*dt*xi*v(:,i)
+     &                -0.5d0*dt*matmul(G,v(:,i))
          vs(:,i)=matmul(h_inver,v(:,i))
         enddo
         vh=vh+0.5d0*dt*matmul((p-pext),sgm)/W    
@@ -174,22 +183,15 @@
         endif
 !ファイルへの書き出し 
 
-
-!温度計算    
-        v=matmul(h,vs)  
-        kin=0d0
-        do j=1,n
-          kin=kin+0.5d0*amass*
-     &     (v(1,j)**2+v(2,j)**2+v(3,j)**2)
-        enddo
-        tk=kin*2d0/(3d0*dble(n))*
-     &     27.2116*11605d0
-!温度計算 
  
-        write(*,*) istep,p(1,1)*29421d0,vh(1,1),h(1,1),tk,rmin
+        write(*,*) istep,p(1,1)*29421d0,h(1,1),tk
         hx(istep)=(h(1,1)+h(2,2)+h(3,3))/3.d0
         t(istep)=tk
-        gpa(istep)=p(1,1)*29421d0
+        gpa(istep)=(p(1,1)+p(2,2)+p(3,3))*29421d0
+
+!        call simple_moving_average(istep,gpa,smap)
+!        write(*,*)smap
+!        smagpa(istep)=smap
 
 
       enddo
@@ -210,10 +212,11 @@
 
 
 !linked cell
-      subroutine pot(istep,f,dfdx,x,n,h,virial,rmin)
+      subroutine pot(f,dfdx,s,n,h,virial,rmin)
       implicit none
-      integer mx,my,mz,hx_lc,hy_lc,hz_lc,m1,m,istep
-      real*8 x(3,n),dfdx(3,n),f,factor,h(3,3),virial(3,3)
+      integer mx,my,mz,hx_lc,hy_lc,hz_lc,m1,m
+      real*8 dfdx(3,n),f,factor,h(3,3),virial(3,3)
+      real*8 s(3,n)
       real*8 sgm,eps,sgm12,sgm6,cutoff,rij2
       integer hyz_lc,hxyz_lc,i,m1x,m1y,m1z
       integer ishiftx,ishifty,ishiftz,j,k,l,n
@@ -224,44 +227,40 @@
       parameter(cutoff=2.5d0*sgm)
       integer,allocatable,dimension(:):: lshd,lscl
       real*8 rij(3),rmin,hx_cell,hy_cell,hz_cell
+      integer counter,counterout
+
+      counter=0
+      counterout=0
 
       dfdx=0d0
       rmin=1000d0
       virial=0d0
 
-
-       hx_lc=max(int(h(1,1)/cutoff),1) !x座標のセル数
-       hy_lc=max(int(h(2,2)/cutoff),1)
-       hz_lc=max(int(h(3,3)/cutoff),1)
+       hx_lc=ceiling(sqrt(dot_product(h(:,1),h(:,1)))/cutoff)-1 !x座標のセル数
+       hy_lc=ceiling(sqrt(dot_product(h(:,2),h(:,2)))/cutoff)-1
+       hz_lc=ceiling(sqrt(dot_product(h(:,3),h(:,3)))/cutoff)-1
        hyz_lc=hy_lc*hz_lc     !セルのyz平面の数
        hxyz_lc=hyz_lc*hx_lc     !セルの総数
-       hx_cell=h(1,1)/hx_lc     !各方向のセルの長さ
-       hy_cell=h(2,2)/hy_lc
-       hz_cell=h(3,3)/hz_lc
+       hx_cell=1.d0/hx_lc     !各方向のセルの長さ
+       hy_cell=1.d0/hy_lc
+       hz_cell=1.d0/hz_lc
        allocate(lshd(hxyz_lc),lscl(n))
        lshd=0
        do i=1,n
-    !    if(x(1,i).lt.0d0 .or. x(1,i).ge.h(1,1) .or.
-    ! &     x(2,i).lt.0d0 .or. x(2,i).ge.h(2,2) .or.
-    ! &     x(3,i).lt.0d0 .or. x(3,i).ge.h(3,3))then
-    !      write(*,*)'Error! i, x,y,z=',
-    ! &     i,x(1,i),x(2,i),x(3,i),h(1,1),s
-    !      stop
-    !    endif
-         mx=int(x(1,i)/hx_cell)
-         my=int(x(2,i)/hy_cell)
-         mz=int(x(3,i)/hz_cell)
+         mx=int(s(1,i)/hx_cell)
+         my=int(s(2,i)/hy_cell)
+         mz=int(s(3,i)/hz_cell)
          mx=min(max(mx,0),hx_lc-1)
          my=min(max(my,0),hy_lc-1)
          mz=min(max(mz,0),hz_lc-1)
          m=mx*hyz_lc+my*hz_lc+mz+1
          lscl(i)=lshd(m)
          lshd(m)=i
-        enddo
+       enddo
 
-       kuxmax=int(cutoff/h(1,1)+1)
-       kuymax=int(cutoff/h(2,2)+1)
-       kuzmax=int(cutoff/h(3,3)+1)
+       kuxmax=1
+       kuymax=1
+       kuzmax=1
        f=0d0
       
       do mz=0,hz_lc-1
@@ -285,12 +284,12 @@
             j=lshd(m1)
             do while(j>0)
               if (i<j) then
-                rij(1)=x(1,i)-(x(1,j)+ishiftx*h(1,1))
-                rij(2)=x(2,i)-(x(2,j)+ishifty*h(2,2))
-                rij(3)=x(3,i)-(x(3,j)+ishiftz*h(3,3))
+                rij(:)=s(:,i)-s(:,j)
+                rij(:)=rij(:)-dnint(rij(:))
+                rij=matmul(h,rij)
                 rij2=rij(1)**2+rij(2)**2+rij(3)**2
-                rmin=min(rmin,sqrt(rij2))
                 if (rij2<cutoff**2) then
+ !                 counter=counter+1
                   f=f+4d0*eps*(sgm12/rij2**6-sgm6/rij2**3)
                   factor=4d0*eps*
      &            (-12d0*sgm12/rij2**7+6d0*sgm6/rij2**4)
@@ -306,6 +305,8 @@
                    virial(k,l)=virial(k,l)-factor*rij(k)*rij(l)
                   enddo
                   enddo
+                else
+ !                  counterout=counterout+1
                 end if
               endif
               j=lscl(j)
@@ -319,6 +320,7 @@
       enddo
       enddo
       deallocate(lshd,lscl)
+ !     write(*,*)counter,counterout,dble(counter)/(counter+counterout)
       return
       end      
 
@@ -342,18 +344,6 @@
       return
       end
 
-!ガウス乱数 box muller 平均０分散１
-      function gauss()
-      implicit none
-      real*8 gauss
-      real*8 u1,u2
-
-      call random_number(u1)
-      call random_number(u2)
-      gauss=sqrt(-2.d0*log(u1))
-     & *cos(2.d0*3.14159265d0*u2) 
-      return
-      end
 
 !逆行列と体積
       subroutine inverse_mass(h,h_inver,vol,mt,mt_inver,sgm)
@@ -430,7 +420,7 @@
       real*8 h(3,3),bohr,x(3,n),v(3,n)
       integer i,n
 
-      open(10,file='nh30-40_pr1d-4.dat')
+      open(10,file='nh50-60_pr1d-4.dat')
       write(10,*)n
       do i=1,n
        write(10,'(a,1x,i5,6e15.7)') 'Ar',i,
@@ -444,3 +434,14 @@
 
       return
       end 
+
+!      subroutine simple_moving_average(istep,gpa,smap)
+!      implicit none
+!      real*8 gpa(istep),smap
+!      integer istep
+
+!       if (istep<=)
+       
+!
+!      return
+!      end
