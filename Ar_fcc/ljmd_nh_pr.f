@@ -1,5 +1,5 @@
-      program pbc_lv_pr
-! PBC lcl lengevine（BAOAB) Parrinello-Rahman
+      program pbc_nh_pr
+! PBC lcls nose-hoover Parrinello-Rahman
       implicit none
       integer nmax
       parameter(nmax=100000)
@@ -14,22 +14,22 @@
       real*8 virial(3,3),p(3,3),kb,pext(3,3)
       real*8 s(3,nmax),vh(3,3),h_inver(3,3)
       real*8 vs(3,nmax),mt(3,3),mt_inver(3,3)
-      real*8 Treg,tau,gkbt,Q,xi,G(3,3)
-      real*8 smap
+      real*8 Treg,tau,gkbt,Q,xi,G(3,3),sum
  
       
 ! time_step      
-      parameter(maxstep=10000)
+      parameter(maxstep=5000)
       real*8 gpa(maxstep)
       real*8 t(maxstep)
       real*8 hx(maxstep)
-      real*8 smagpa(maxstep)
+      real*8 smap(maxstep)
     
 
       dt=41d0*5d0
       kb=1.d0/(27.2116*11605d0)
       W=5.d5
       xi=0d0
+      sum=0d0
 
       pext=0d0
       pext(1,1)=1.01325d-4/29421d0
@@ -40,7 +40,7 @@
       vh=0d0
 
 !ファイルの読みこみ      
-      open(10,file='lv50_bs1d-4.dat')
+      open(10,file='nh80-90_pr1d-4.dat')
       read(10,*)n
       do i=1,n
         read(10,*)lsp(i),itemp,
@@ -58,8 +58,8 @@
       close(10)
 !ファイルの読み込み
 
-      Treg=20d0
-      tau=10d0*dt
+      Treg=50d0
+      tau=65d0*dt
       gkbt=(3.d0*dble(n))*Treg*kb
       Q=gkbt*tau**2
 
@@ -82,8 +82,6 @@
        vs(:,i)=matmul(h_inver,v(:,i))
       enddo
   
-      
-  
       call pot (f,dfdx,s,n,h,virial,rmin) ! mt:metoric tensor
       call inverse_mass(h,h_inver,vol,mt,mt_inver,sgm)
       call press(v,n,vol,p,virial)
@@ -93,12 +91,12 @@
 ! ここからloop
       do istep=1,maxstep
 
-      Treg=50d0
-      if (istep<=5000) then
-         Treg=Treg+0.002d0*istep
-        else
-         Treg=Treg+10d0
-        endif
+      Treg=90d0
+!      if (istep<=1000) then
+!         Treg=Treg+0.001d0*istep
+!       else
+!         Treg=Treg+1d0
+!        endif
         gkbt=(3.d0*dble(n))*Treg*kb
         Q=gkbt*tau**2
 
@@ -184,22 +182,18 @@
 !ファイルへの書き出し 
 
  
-        write(*,*) istep,p(1,1)*29421d0,h(1,1),tk
+        gpa(istep)=(p(1,1)+p(2,2)+p(3,3))*29421d0
+        call simple_moving_average(istep,gpa,smap)
+        write(*,*) istep,p(1,1)*29421d0,h(1,1),tk,smap(istep)
         hx(istep)=(h(1,1)+h(2,2)+h(3,3))/3.d0
         t(istep)=tk
-        gpa(istep)=(p(1,1)+p(2,2)+p(3,3))*29421d0
-
-!        call simple_moving_average(istep,gpa,smap)
-!        write(*,*)smap
-!        smagpa(istep)=smap
-
 
       enddo
 
 !グラフ      
       open (12,file='t.dat')
       do i=1,maxstep
-        write(12,*) gpa(i),t(i),hx(i)
+        write(12,*) gpa(i),t(i),hx(i),smap(i)
       enddo
       close(12)
 !グラフ
@@ -208,7 +202,7 @@
       call kiroku(h,n,bohr,x,v)
 !kiroku
 
-      end program pbc_lv_pr
+      end program pbc_nh_pr
 
 
 !linked cell
@@ -420,7 +414,7 @@
       real*8 h(3,3),bohr,x(3,n),v(3,n)
       integer i,n
 
-      open(10,file='nh50-60_pr1d-4.dat')
+      open(10,file='nh90-90_pr1d-4.dat')
       write(10,*)n
       do i=1,n
        write(10,'(a,1x,i5,6e15.7)') 'Ar',i,
@@ -435,13 +429,20 @@
       return
       end 
 
-!      subroutine simple_moving_average(istep,gpa,smap)
-!      implicit none
-!      real*8 gpa(istep),smap
-!      integer istep
+      subroutine simple_moving_average(istep,gpa,smap)
+      implicit none
+      real*8 gpa(istep),smap(istep),sum
+      save sum
+      integer istep,n
+      parameter(n=500)    
 
-!       if (istep<=)
-       
-!
-!      return
-!      end
+       if (istep<=n)  then
+        sum=sum+gpa(istep)
+        smap(istep)=sum/istep
+       else 
+        sum=sum-gpa(istep-n)+gpa(istep)
+        smap(istep)=sum/n
+       endif  
+
+      return
+      end
