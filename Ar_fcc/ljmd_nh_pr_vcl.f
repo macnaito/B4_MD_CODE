@@ -1,24 +1,27 @@
       program pbc_nh_pr
-! PBC lcls nose-hoover Parrinello-Rahman
+! PBC verlet-cell-list nose-hoover Parrinello-Rahman
       implicit none
       integer nmax
-      parameter(nmax=100000)
+      parameter(nmax=13500)
       integer i,j,k,m,n,maxstep,itemp,istep
-      real*8 x(3,nmax),v(3,nmax),dfdx(3,nmax),f,dt
+      real*8 x(3,nmax),v(3,nmax),dfdx(3,nmax),dt
       real*8 h(3,3),vol,amass,bohr
       character*2 lsp(nmax)
       character*40 filename2
       parameter(amass=40d0*1836d0)
       parameter(bohr=0.5292d0)
-      real*8 W,sgm(3,3),tk,kin,rmin
+      real*8 W,sgm(3,3),tk,kin
       real*8 virial(3,3),p(3,3),kb,pext(3,3)
       real*8 s(3,nmax),vh(3,3),h_inver(3,3)
       real*8 vs(3,nmax),mt(3,3),mt_inver(3,3)
       real*8 Treg,tau,gkbt,Q,xi,G(3,3),sum
+      integer max_neighbor
+      parameter(max_neighbor=200)
+      integer neighbor_counter(nmax),neighbor_list(max_neighbor,nmax)
  
       
 ! time_step      
-      parameter(maxstep=5000)
+      parameter(maxstep=10000)
       real*8 gpa(maxstep)
       real*8 t(maxstep)
       real*8 hx(maxstep)
@@ -32,15 +35,15 @@
       sum=0d0
 
       pext=0d0
-      pext(1,1)=1.01325d-4/29421d0
-      pext(2,2)=1.01325d-4/29421d0
-      pext(3,3)=1.01325d-4/29421d0
+      pext(1,1)=1.01325d-1/29421d0
+      pext(2,2)=1.01325d-1/29421d0
+      pext(3,3)=1.01325d-1/29421d0
       filename2='out000.xyz'
       k=0
       vh=0d0
 
 !ファイルの読みこみ      
-      open(10,file='nh80-90_pr1d-4.dat')
+      open(10,file='x.dat')
       read(10,*)n
       do i=1,n
         read(10,*)lsp(i),itemp,
@@ -82,23 +85,25 @@
        vs(:,i)=matmul(h_inver,v(:,i))
       enddo
   
-      call pot (f,dfdx,s,n,h,virial,rmin) ! mt:metoric tensor
+      call neighbor(s,n,h,neighbor_counter,neighbor_list) ! mt:metoric tensor
+      call pot(n,s,h,virial,dfdx,neighbor_list,neighbor_counter)
       call inverse_mass(h,h_inver,vol,mt,mt_inver,sgm)
       call press(v,n,vol,p,virial)
-      write(*,*)p(1,1)*29421d0
+      write(*,*)p(1,1)*29421d0,tk
       
 
 ! ここからloop
       do istep=1,maxstep
-
-      Treg=90d0
-!      if (istep<=1000) then
-!         Treg=Treg+0.001d0*istep
-!       else
-!         Treg=Treg+1d0
-!        endif
+ !目標温度
+      Treg=1d0
+      if (istep<=3000) then
+         Treg=Treg-0.001d0*istep
+       else
+         Treg=Treg-3d0
+        endif
         gkbt=(3.d0*dble(n))*Treg*kb
         Q=gkbt*tau**2
+ !目標温度
 
         kin=0d0
         do j=1,n
@@ -138,7 +143,10 @@
         x=matmul(h,s)
         v=matmul(h,vs)
 
-        call pot(f,dfdx,s,n,h,virial,rmin)
+        if(mod(istep,200).eq.0) then ! beighborlistの更新
+         call neighbor(s,n,h,neighbor_counter,neighbor_list)
+        endif
+        call pot(n,s,h,virial,dfdx,neighbor_list,neighbor_counter)
         call inverse_mass(h,h_inver,vol,mt,mt_inver,sgm)
         call press(v,n,vol,p,virial)
 
@@ -206,35 +214,29 @@
 
 
 !linked cell
-      subroutine pot(f,dfdx,s,n,h,virial,rmin)
+      subroutine neighbor(s,n,h,neighbor_counter,neighbor_list)
       implicit none
       integer mx,my,mz,hx_lc,hy_lc,hz_lc,m1,m
-      real*8 dfdx(3,n),f,factor,h(3,3),virial(3,3)
-      real*8 s(3,n)
-      real*8 sgm,eps,sgm12,sgm6,cutoff,rij2
+      real*8 h(3,3),s(3,n)
+      real*8 cutoff,cutoff_plus,rij2
       integer hyz_lc,hxyz_lc,i,m1x,m1y,m1z
-      integer ishiftx,ishifty,ishiftz,j,k,l,n
+      integer ishiftx,ishifty,ishiftz,j,n
       integer kuxmax,kuymax,kuzmax,kux,kuy,kuz
-      parameter(sgm=3.4d0/0.5292d0)
-      parameter(eps=120d0/11605d0/27.2116d0)
-      parameter(sgm12=sgm**12,sgm6=sgm**6)
-      parameter(cutoff=2.5d0*sgm)
       integer,allocatable,dimension(:):: lshd,lscl
-      real*8 rij(3),rmin,hx_cell,hy_cell,hz_cell
-      integer counter,counterout
+      real*8 rij(3),hx_cell,hy_cell,hz_cell
+      integer max_neighbor
+      parameter (max_neighbor=200)
+      integer neighbor_counter(n),neighbor_list(max_neighbor,n)
+      parameter(cutoff_plus=6.d0)
+      parameter(cutoff=2.5d0*3.4d0/0.5292d0) !cutoff=16.06
 
-      counter=0
-      counterout=0
-
-      dfdx=0d0
-      rmin=1000d0
-      virial=0d0
+       neighbor_counter=0
 
        hx_lc=ceiling(sqrt(dot_product(h(:,1),h(:,1)))/cutoff)-1 !x座標のセル数
        hy_lc=ceiling(sqrt(dot_product(h(:,2),h(:,2)))/cutoff)-1
        hz_lc=ceiling(sqrt(dot_product(h(:,3),h(:,3)))/cutoff)-1
        hyz_lc=hy_lc*hz_lc     !セルのyz平面の数
-       hxyz_lc=hyz_lc*hx_lc     !セルの総数
+       hxyz_lc=hyz_lc*hx_lc
        hx_cell=1.d0/hx_lc     !各方向のセルの長さ
        hy_cell=1.d0/hy_lc
        hz_cell=1.d0/hz_lc
@@ -255,11 +257,10 @@
        kuxmax=1
        kuymax=1
        kuzmax=1
-       f=0d0
       
-      do mz=0,hz_lc-1
-      do my=0,hy_lc-1
-      do mx=0,hx_lc-1
+       do mz=0,hz_lc-1
+       do my=0,hy_lc-1
+       do mx=0,hx_lc-1
         m=mx*hyz_lc+my*hz_lc+mz+1 !3つのdoloopで全てのセルを走査
         if (lshd(m)==0)cycle !空のセルはスキップ
         do kuz=-kuzmax,kuzmax
@@ -282,27 +283,13 @@
                 rij(:)=rij(:)-dnint(rij(:))
                 rij=matmul(h,rij)
                 rij2=rij(1)**2+rij(2)**2+rij(3)**2
-                if (rij2<cutoff**2) then
- !                 counter=counter+1
-                  f=f+4d0*eps*(sgm12/rij2**6-sgm6/rij2**3)
-                  factor=4d0*eps*
-     &            (-12d0*sgm12/rij2**7+6d0*sgm6/rij2**4)
-                  dfdx(1,i)=dfdx(1,i)-factor*rij(1)
-                  dfdx(2,i)=dfdx(2,i)-factor*rij(2)
-                  dfdx(3,i)=dfdx(3,i)-factor*rij(3)
-                  dfdx(1,j)=dfdx(1,j)+factor*rij(1)
-                  dfdx(2,j)=dfdx(2,j)+factor*rij(2)
-                  dfdx(3,j)=dfdx(3,j)+factor*rij(3)
-
-                  do k=1,3
-                  do l=1,3
-                   virial(k,l)=virial(k,l)-factor*rij(k)*rij(l)
-                  enddo
-                  enddo
-                else
- !                  counterout=counterout+1
-                end if
-              endif
+                if (rij2<(cutoff+cutoff_plus)**2) then
+                 neighbor_counter(i)=neighbor_counter(i)+1
+                 neighbor_counter(j)=neighbor_counter(j)+1
+                 neighbor_list(neighbor_counter(i),i)=j
+                 neighbor_list(neighbor_counter(j),j)=i
+                endif
+              end if
               j=lscl(j)
             enddo
             i=lscl(i)
@@ -314,9 +301,59 @@
       enddo
       enddo
       deallocate(lshd,lscl)
- !     write(*,*)counter,counterout,dble(counter)/(counter+counterout)
       return
-      end      
+      end   
+ 
+! call pot      
+      subroutine pot(n,s,h,virial,dfdx,neighbor_list,neighbor_counter)
+      implicit none
+      integer n,j,k,l,a,b
+      real*8 sgm,eps,sgm12,sgm6,cutoff,rij(3),rij2
+      real*8 f,dfdx(3,n),factor,virial(3,3),s(3,n),h(3,3)
+      integer neighbor_counter(n),max_neighbor
+      parameter (max_neighbor=200)
+      integer neighbor_list(max_neighbor,n)
+
+
+      parameter(sgm=3.4d0/0.5292d0)
+      parameter(eps=120d0/11605d0/27.2116d0)
+      parameter(sgm12=sgm**12,sgm6=sgm**6)
+      parameter(cutoff=2.5d0*sgm)
+
+      dfdx=0d0
+      f=0d0
+      virial=0d0
+
+      do a=1,n
+      do b=1,neighbor_counter(a)
+       j=neighbor_list(b,a)
+       if (a<j)then
+       rij=s(:,a)-s(:,j)
+       rij=rij-dnint(rij)
+       rij=matmul(h,rij)
+       rij2=dot_product(rij,rij)
+       if (rij2<cutoff**2)then
+        f=f+4d0*eps*(sgm12/rij2**6-sgm6/rij2**3)
+        factor=4d0*eps*
+     &       (-12d0*sgm12/rij2**7+6d0*sgm6/rij2**4)
+        dfdx(1,a)=dfdx(1,a)-factor*rij(1)
+        dfdx(2,a)=dfdx(2,a)-factor*rij(2)
+        dfdx(3,a)=dfdx(3,a)-factor*rij(3)
+        dfdx(1,j)=dfdx(1,j)+factor*rij(1)
+        dfdx(2,j)=dfdx(2,j)+factor*rij(2)
+        dfdx(3,j)=dfdx(3,j)+factor*rij(3)
+        do k=1,3
+        do l=1,3
+         virial(k,l)=virial(k,l)-factor*rij(k)*rij(l)
+        enddo
+        enddo
+       endif
+       endif
+      enddo
+      enddo
+
+      return
+      end
 
 !subrutine ishift  
       subroutine get_ishift(lc,i,ishift)
@@ -414,7 +451,7 @@
       real*8 h(3,3),bohr,x(3,n),v(3,n)
       integer i,n
 
-      open(10,file='nh90-90_pr1d-4.dat')
+      open(10,file='x.dat')
       write(10,*)n
       do i=1,n
        write(10,'(a,1x,i5,6e15.7)') 'Ar',i,
@@ -429,12 +466,13 @@
       return
       end 
 
+! 単純移動平均　sma      
       subroutine simple_moving_average(istep,gpa,smap)
       implicit none
       real*8 gpa(istep),smap(istep),sum
       save sum
       integer istep,n
-      parameter(n=500)    
+      parameter(n=600)    
 
        if (istep<=n)  then
         sum=sum+gpa(istep)
