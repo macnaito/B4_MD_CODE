@@ -6,7 +6,7 @@
       parameter(nmax=13500)
       integer i,j,k,m,n,maxstep,itemp,istep
       real*8 x(3,nmax),v(3,nmax),dfdx(3,nmax),dt
-      real*8 h(3,3),vol,amass,bohr
+      real*8 h(3,3),vol,amass,bohr,f
       character*2 lsp(nmax)
       character*40 filename2
       parameter(amass=40d0*1836d0)
@@ -22,11 +22,12 @@
  
       
 ! time_step      
-      parameter(maxstep=10000)
+      parameter(maxstep=5000)
       real*8 gpa(maxstep)
       real*8 t(maxstep)
       real*8 hx(maxstep)
       real*8 smap(maxstep)
+      real*8 hamil(maxstep)
     
 
       dt=41d0*5d0
@@ -44,7 +45,7 @@
       vh=0d0
 
 !ファイルの読みこみ      
-      open(10,file='x.dat')
+      open(10,file='init.dat')
       read(10,*)n
       do i=1,n
         read(10,*)lsp(i),itemp,
@@ -80,15 +81,15 @@
      &     27.2116*11605d0
 !温度
     
-      call inverse_mass(h,h_inver,vol,mt,mt_inver,sgm)
+      call inverse_vol(h,h_inver,vol,mt,mt_inver,sgm)
       do i=1,n
        s(:,i)=matmul(h_inver,x(:,i)) 
        vs(:,i)=matmul(h_inver,v(:,i))
       enddo
   
       call neighbor(s,n,h,neighbor_counter,neighbor_list) ! mt:metoric tensor
-      call pot(n,s,h,virial,dfdx,neighbor_list,neighbor_counter)
-      call inverse_mass(h,h_inver,vol,mt,mt_inver,sgm)
+      call pot(n,s,h,f,virial,dfdx,neighbor_list,neighbor_counter)
+      call inverse_vol(h,h_inver,vol,mt,mt_inver,sgm)
       call press(v,n,vol,p,virial)
       write(*,*)p(1,1)*29421d0,tk
       
@@ -111,25 +112,25 @@
           kin=kin+0.5d0*amass*
      &     (v(1,j)**2+v(2,j)**2+v(3,j)**2)
         enddo
-        xi=xi+0.5d0*dt*(2.d0*kin-gkbt)/Q
+!        xi=xi+0.5d0*dt*(2.d0*kin-gkbt)/Q
 
-
+!速度更新
         v=matmul(h,vs)
-        G=matmul(vh,h_inver)
+ !        G=matmul(vh,h_inver)
         do i=1,n
           v(:,i)=v(:,i)+0.5d0*dt*(dfdx(:,i)/amass)
-     &             -0.5d0*dt*xi*v(:,i)    !nose-hoover
-     &             -0.5d0*dt*matmul(G,v(:,i))  !
+ !     &             -0.5d0*dt*xi*v(:,i)    !nose-hoover
+ !     &             -0.5d0*dt*matmul(G,v(:,i))  !
           vs(:,i)=matmul(h_inver,v(:,i))
         enddo
-        vh=vh+0.5d0*dt*(matmul((p-pext),sgm)/W)
-
+ !        vh=vh+0.5d0*dt*(matmul((p-pext),sgm)/W)
+!
   
 !位置の更新        
         do i=1,n
          s(:,i)=s(:,i)+dt*vs(:,i)
         enddo
-        h=h+dt*vh
+!        h=h+dt*vh
 
 !pbc
         do j=1,3
@@ -140,15 +141,11 @@
         enddo
 !pbc
 
-
-        x=matmul(h,s)
-        v=matmul(h,vs)
-
         if(mod(istep,200).eq.0) then ! beighborlistの更新
          call neighbor(s,n,h,neighbor_counter,neighbor_list)
         endif
-        call pot(n,s,h,virial,dfdx,neighbor_list,neighbor_counter)
-        call inverse_mass(h,h_inver,vol,mt,mt_inver,sgm)
+        call pot(n,s,h,f,virial,dfdx,neighbor_list,neighbor_counter)
+        call inverse_vol(h,h_inver,vol,mt,mt_inver,sgm)
         call press(v,n,vol,p,virial)
 
         kin=0d0
@@ -158,20 +155,28 @@
           tk=kin*2d0/(3d0*dble(n))*
      &     27.2116*11605d0
         enddo
-        xi=xi+0.5d0*dt*(2.d0*kin-gkbt)/Q
+!        xi=xi+0.5d0*dt*(2.d0*kin-gkbt)/Q
 
-
+!速度更新
         v=matmul(h,vs)
         do i=1,n
          v(:,i)=v(:,i)+0.5d0*dt*(dfdx(:,i)/amass)
-     &                -0.5d0*dt*xi*v(:,i)
-     &                -0.5d0*dt*matmul(G,v(:,i))
+ !     &                -0.5d0*dt*xi*v(:,i)
+ !     &                -0.5d0*dt*matmul(G,v(:,i))
          vs(:,i)=matmul(h_inver,v(:,i))
         enddo
-        vh=vh+0.5d0*dt*matmul((p-pext),sgm)/W    
-     
+        kin=0d0
+        do j=1,n
+          kin=kin+0.5d0*amass*
+     &     (v(1,j)**2+v(2,j)**2+v(3,j)**2)
+          tk=kin*2d0/(3d0*dble(n))*
+     &     27.2116*11605d0
+        enddo
+ !        vh=vh+0.5d0*dt*matmul((p-pext),sgm)/W    
+!
+
 !ファイルの書き出し
-        if(mod(istep,100).eq.0)then
+        if(mod(istep,maxstep/100).eq.0)then
           k=k+1
           write(filename2(4:6),'(i3.3)')k
 
@@ -196,13 +201,14 @@
         write(*,*) istep,p(1,1)*29421d0,h(1,1),tk,smap(istep)
         hx(istep)=(h(1,1)+h(2,2)+h(3,3))/3.d0
         t(istep)=tk
+        hamil(istep)=kin+f
 
       enddo
 
 !グラフ      
       open (12,file='t.dat')
       do i=1,maxstep
-        write(12,*) gpa(i),t(i),hx(i),smap(i)
+        write(12,*) gpa(i),t(i),hx(i),smap(i),hamil(i)
       enddo
       close(12)
 !グラフ
@@ -306,7 +312,7 @@
       end   
  
 ! call pot      
-      subroutine pot(n,s,h,virial,dfdx,neighbor_list,neighbor_counter)
+      subroutine pot(n,s,h,f,virial,dfdx,neighbor_list,neighbor_counter)
       implicit none
       integer n,j,k,l,a,b
       real*8 sgm,eps,sgm12,sgm6,cutoff,rij(3),rij2
@@ -378,7 +384,7 @@
 
 
 !逆行列と体積
-      subroutine inverse_mass(h,h_inver,vol,mt,mt_inver,sgm)
+      subroutine inverse_vol(h,h_inver,vol,mt,mt_inver,sgm)
       implicit none
       real*8 h(3,3)
       real*8 h_inver(3,3)

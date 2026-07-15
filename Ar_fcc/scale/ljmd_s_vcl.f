@@ -1,6 +1,6 @@
 
-      program pbc_nh_pr
-! PBC verlet-cell-list nose-hoover Parrinello-Rahman
+      program s_vcl
+! PBC verlet-cell-list
       implicit none
       integer nmax
       parameter(nmax=13500)
@@ -11,28 +11,25 @@
       character*40 filename2
       parameter(amass=40d0*1836d0)
       parameter(bohr=0.5292d0)
-      real*8 W,sgm(3,3),tk,kin
-      real*8 virial(3,3),p(3,3),kb,pext(3,3)
+      real*8 sgm(3,3),tk,kin
+      real*8 virial(3,3),p(3,3),pext(3,3)
       real*8 s(3,nmax),vh(3,3),h_inver(3,3)
       real*8 vs(3,nmax),mt(3,3),mt_inver(3,3)
-      real*8 Treg,tau,gkbt,Q,xi,G(3,3),sum
+      real*8 sum,f
       integer max_neighbor
       parameter(max_neighbor=200)
       integer neighbor_counter(nmax),neighbor_list(max_neighbor,nmax)
  
       
 ! time_step      
-      parameter(maxstep=10000)
+      parameter(maxstep=1000)
       real*8 gpa(maxstep)
       real*8 t(maxstep)
-      real*8 hx(maxstep)
       real*8 smap(maxstep)
+      real*8 total_energy(maxstep)
     
 
       dt=41d0*5d0
-      kb=1.d0/(27.2116*11605d0)
-      W=5.d5
-      xi=0d0
       sum=0d0
 
       pext=0d0
@@ -44,7 +41,7 @@
       vh=0d0
 
 !ファイルの読みこみ      
-      open(10,file='x.dat')
+      open(10,file='init.dat')
       read(10,*)n
       do i=1,n
         read(10,*)lsp(i),itemp,
@@ -61,12 +58,6 @@
       h=h/bohr
       close(10)
 !ファイルの読み込み
-
-      Treg=50d0
-      tau=65d0*dt
-      gkbt=(3.d0*dble(n))*Treg*kb
-      Q=gkbt*tau**2
-
 
 !計算start    
 
@@ -87,7 +78,7 @@
       enddo
   
       call neighbor(s,n,h,neighbor_counter,neighbor_list) ! mt:metoric tensor
-      call pot(n,s,h,virial,dfdx,neighbor_list,neighbor_counter)
+      call pot(n,s,h,virial,dfdx,f,neighbor_list,neighbor_counter)
       call inverse_mass(h,h_inver,vol,mt,mt_inver,sgm)
       call press(v,n,vol,p,virial)
       write(*,*)p(1,1)*29421d0,tk
@@ -95,41 +86,17 @@
 
 ! ここからloop
       do istep=1,maxstep
- !目標温度
-      Treg=1d0
-      if (istep<=3000) then
-         Treg=Treg-0.001d0*istep
-       else
-         Treg=Treg-3d0
-        endif
-        gkbt=(3.d0*dble(n))*Treg*kb
-        Q=gkbt*tau**2
- !目標温度
-
-        kin=0d0
-        do j=1,n
-          kin=kin+0.5d0*amass*
-     &     (v(1,j)**2+v(2,j)**2+v(3,j)**2)
-        enddo
-        xi=xi+0.5d0*dt*(2.d0*kin-gkbt)/Q
-
 
         v=matmul(h,vs)
-        G=matmul(vh,h_inver)
         do i=1,n
           v(:,i)=v(:,i)+0.5d0*dt*(dfdx(:,i)/amass)
-     &             -0.5d0*dt*xi*v(:,i)    !nose-hoover
-     &             -0.5d0*dt*matmul(G,v(:,i))  !
           vs(:,i)=matmul(h_inver,v(:,i))
         enddo
-        vh=vh+0.5d0*dt*(matmul((p-pext),sgm)/W)
-
   
 !位置の更新        
         do i=1,n
          s(:,i)=s(:,i)+dt*vs(:,i)
         enddo
-        h=h+dt*vh
 
 !pbc
         do j=1,3
@@ -141,15 +108,17 @@
 !pbc
 
 
-        x=matmul(h,s)
-        v=matmul(h,vs)
-
-        if(mod(istep,200).eq.0) then ! beighborlistの更新
+        if(mod(istep,100).eq.0) then ! beighborlistの更新
          call neighbor(s,n,h,neighbor_counter,neighbor_list)
         endif
-        call pot(n,s,h,virial,dfdx,neighbor_list,neighbor_counter)
+        call pot(n,s,h,virial,dfdx,f,neighbor_list,neighbor_counter)
         call inverse_mass(h,h_inver,vol,mt,mt_inver,sgm)
         call press(v,n,vol,p,virial)
+
+        do i=1,n
+         v(:,i)=v(:,i)+0.5d0*dt*(dfdx(:,i)/amass)
+         vs(:,i)=matmul(h_inver,v(:,i))
+        enddo  
 
         kin=0d0
         do j=1,n
@@ -158,23 +127,11 @@
           tk=kin*2d0/(3d0*dble(n))*
      &     27.2116*11605d0
         enddo
-        xi=xi+0.5d0*dt*(2.d0*kin-gkbt)/Q
-
-
-        v=matmul(h,vs)
-        do i=1,n
-         v(:,i)=v(:,i)+0.5d0*dt*(dfdx(:,i)/amass)
-     &                -0.5d0*dt*xi*v(:,i)
-     &                -0.5d0*dt*matmul(G,v(:,i))
-         vs(:,i)=matmul(h_inver,v(:,i))
-        enddo
-        vh=vh+0.5d0*dt*matmul((p-pext),sgm)/W    
      
 !ファイルの書き出し
-        if(mod(istep,100).eq.0)then
+        if(mod(istep,maxstep/100).eq.0)then
           k=k+1
           write(filename2(4:6),'(i3.3)')k
-
           open(11,file=filename2)
           write(11,*)n
           write(11,'(a,3(3e15.7),a,a)')
@@ -191,27 +148,27 @@
 !ファイルへの書き出し 
 
  
+        total_energy(istep)=f+kin
         gpa(istep)=(p(1,1)+p(2,2)+p(3,3))*29421d0
+        t(istep)=tk 
         call simple_moving_average(istep,gpa,smap)
-        write(*,*) istep,p(1,1)*29421d0,h(1,1),tk,smap(istep)
-        hx(istep)=(h(1,1)+h(2,2)+h(3,3))/3.d0
-        t(istep)=tk
+        write(*,*) istep,p(1,1)*29421d0,tk,smap(istep)
 
       enddo
 
 !グラフ      
       open (12,file='t.dat')
       do i=1,maxstep
-        write(12,*) gpa(i),t(i),hx(i),smap(i)
+        write(12,*) gpa(i),t(i),smap(i),total_energy(i)
       enddo
       close(12)
 !グラフ
 
 !kiroku
-      call kiroku(h,n,bohr,x,v)
+!      call kiroku(h,n,bohr,x,v)
 !kiroku
 
-      end program pbc_nh_pr
+      end program
 
 
 !linked cell
@@ -306,7 +263,7 @@
       end   
  
 ! call pot      
-      subroutine pot(n,s,h,virial,dfdx,neighbor_list,neighbor_counter)
+      subroutine pot(n,s,h,virial,dfdx,f,neighbor_list,neighbor_counter)
       implicit none
       integer n,j,k,l,a,b
       real*8 sgm,eps,sgm12,sgm6,cutoff,rij(3),rij2
@@ -483,5 +440,17 @@
         smap(istep)=sum/n
        endif  
 
+      return
+      end
+    
+! maxwell分布
+      subroutine gauss(ga)
+      implicit none
+      real*8 ga,u1,u2
+
+      call random_number(u1)
+      call random_number(u2)
+      if(u1<1d-12) u1=1d-12
+      ga=sqrt(-2.d0*log(u1))*cos(2.d0*3.14159265d0*u2)
       return
       end
