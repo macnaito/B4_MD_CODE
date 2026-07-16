@@ -11,12 +11,12 @@
       real*8 xp(4),yp(4),zp(4),cunit,treg,kb,g(3)
       real*8 kinetic_energy
       cunit=2.0d0**(1d0/6)*sgm*
-     &  sqrt(2d0)*0.975d0
+     &  sqrt(2d0)*0.975d0*0.98
       rec=0
       write(*,*)cunit
 
 ! boxsize
-      bs=15
+      bs=10
 ! boxsize        
       hxx=bs*cunit*bohr
       hyy=bs*cunit*bohr

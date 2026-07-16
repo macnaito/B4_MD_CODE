@@ -1,5 +1,5 @@
 !　スケールした座標でのMD 温度・圧力制御なし　エネルギー保存を確認
-!　速度こうしんはvで行う　
+!　速度こうしんはvで行う　lcl
       program ljmd
       
       implicit real*8 (a-h,o-z)
@@ -20,7 +20,7 @@
       real*8,allocatable,dimension(:)::rec1,rec2,rec3,rec4,rec5,rec6
       real*8,allocatable,dimension(:)::gpa,smap
 
-      maxstep=1000
+      maxstep=2000
       allocate(gpa(maxstep),smap(maxstep),rec1(maxstep),rec2(maxstep)
      &        ,rec3(maxstep),rec4(maxstep),rec5(maxstep),rec6(maxstep))
 
@@ -43,7 +43,7 @@
       h=h/bohr
       x(:,:)=x(:,:)/bohr    !a.u.に変換
 !
-      dt=41*0.5d0
+      dt=41*1.d0
 
       call vol_inverse(h,vol,h_inver)
 
@@ -175,6 +175,7 @@
 !
 
       write(*,*)istep,tempk,gpa(istep),smap(istep),f+ekin
+      
       rec1(istep)=tempk
       rec2(istep)=f
       rec3(istep)=ekin
@@ -193,6 +194,10 @@
      &             ,gpa(i),smap(i)
       enddo
       close(12)  
+!
+!　記録
+!
+!      call kiroku(h,ntot,bohr,x,v)
 !
 
       end program
@@ -246,6 +251,7 @@
       hx_cell=1.d0/hx_lc     !各方向のセルの長さ
       hy_cell=1.d0/hy_lc
       hz_cell=1.d0/hz_lc
+
       allocate(lshd(hxyz_lc),lscl(ntot))
       lshd=0
       do i=1,ntot
@@ -366,5 +372,25 @@
 
       return
       end
+!
+!　記録
+      subroutine kiroku(h,ntot,bohr,x,v)
+      implicit none
+      real*8 h(3,3),x(3,ntot),v(3,ntot),bohr
+      integer i,ntot
+      
+      open(13,file='fainal.dat')
+      write(13,*)ntot
+      do i=1,ntot
+        write(13,'(a,1x,i5,6e15.7)') 'Ar',i,
+     &       x(1,i)*bohr,x(2,i)*bohr,x(3,i)*bohr,
+     &       v(1,i),v(2,i),v(3,i)
+      enddo
+      write(13,'(3e24.15)')h(1,1)*bohr,h(2,1)*bohr,h(3,1)*bohr
+      write(13,'(3e24.15)')h(1,2)*bohr,h(2,2)*bohr,h(3,2)*bohr
+      write(13,'(3e24.15)')h(1,3)*bohr,h(2,3)*bohr,h(3,3)*bohr
+      close(13)
+      end
+!
 
 

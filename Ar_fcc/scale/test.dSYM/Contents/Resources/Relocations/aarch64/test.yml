@@ -1,0 +1,16 @@
+---
+triple:          'arm64-apple-darwin'
+binary-path:     test
+relocations:
+  - { offset: 0x1A, size: 0x8, addend: 0x0, symName: _pressure_, symObjAddr: 0x0, symBinAddr: 0x100000700, symSize: 0xB8C }
+  - { offset: 0x59, size: 0x8, addend: 0x0, symName: _main, symObjAddr: 0xD230, symBinAddr: 0x10000D930, symSize: 0x3C }
+  - { offset: 0xA1, size: 0x8, addend: 0x0, symName: _MAIN__, symObjAddr: 0x38F8, symBinAddr: 0x100003FF8, symSize: 0x9938 }
+  - { offset: 0x6A8, size: 0x8, addend: 0x0, symName: _vol_inverse_, symObjAddr: 0x3550, symBinAddr: 0x100003C50, symSize: 0x3A8 }
+  - { offset: 0x6F8, size: 0x8, addend: 0x0, symName: _get_ishift_, symObjAddr: 0x341C, symBinAddr: 0x100003B1C, symSize: 0x134 }
+  - { offset: 0x74A, size: 0x8, addend: 0x0, symName: _vcl_, symObjAddr: 0x1AB0, symBinAddr: 0x1000021B0, symSize: 0x196C }
+  - { offset: 0xA89, size: 0x8, addend: 0x0, symName: _pot_, symObjAddr: 0xB8C, symBinAddr: 0x10000128C, symSize: 0xF24 }
+  - { offset: 0xC9B, size: 0x8, addend: 0x0, symName: _pressure_, symObjAddr: 0x0, symBinAddr: 0x100000700, symSize: 0xB8C }
+  - { offset: 0xD9E, size: 0x8, addend: 0x0, symName: _sum.6, symObjAddr: 0x15458, symBinAddr: 0x100018008, symSize: 0x0 }
+  - { offset: 0xE1D, size: 0x8, addend: 0x0, symName: ___powidf2, symObjAddr: 0x0, symBinAddr: 0x10000D980, symSize: 0x84 }
+  - { offset: 0xEE4, size: 0x8, addend: 0x0, symName: ___powidf2, symObjAddr: 0x0, symBinAddr: 0x10000D980, symSize: 0x84 }
+...
