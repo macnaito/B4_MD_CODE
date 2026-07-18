@@ -54,7 +54,7 @@
       write(*,*)n
 
 ! 初速度      
-      treg=100.d0
+      treg=50.d0
       kb=1.d0/11605.d0/27.2116d0
       do i=1,n
          call gauss(g)

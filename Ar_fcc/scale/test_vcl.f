@@ -1,5 +1,5 @@
-!　スケールした座標でのMD 圧力制御なし　エネルギー保存を確認
-!　速度こうしんはvで行う　vcl　温度制御nose-hoover
+!　スケールした座標でのMD 温度・圧力制御なし　エネルギー保存を確認
+!　速度こうしんはvで行う　verlet_cell_list
       program ljmd
       
       implicit real*8 (a-h,o-z)

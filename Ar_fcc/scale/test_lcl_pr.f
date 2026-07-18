@@ -1,5 +1,5 @@
 !　スケールした座標でのMD 温度・圧力制御なし　エネルギー保存を確認
-!　速度こうしんはvで行う　vcl
+!　速度こうしんはvで行う　lcl
       program ljmd
       
       implicit real*8 (a-h,o-z)
@@ -16,8 +16,6 @@
       character*40 filename
       real*8 p(3,3),h(3,3),h_inver(3,3)
       real*8 G(3,3),e_kin(3,3),str(3,3)
-      integer,allocatable,dimension(:)::nei_counter
-      integer,allocatable,dimension(:,:)::nei_list
 
       real*8,allocatable,dimension(:)::rec1,rec2,rec3,rec4,rec5,rec6
       real*8,allocatable,dimension(:)::gpa,smap
@@ -30,7 +28,6 @@
 
 !　.datファイルの読み込み      
       open(10,file='init.dat')
-!
        read(10,*)ntot
         allocate(x(3,ntot),v(3,ntot),frc(3,ntot),s(3,ntot),ds(3,ntot),
      &              mass(ntot),lsp(ntot))
@@ -45,11 +42,9 @@
       close(10)
       h=h/bohr
       x(:,:)=x(:,:)/bohr    !a.u.に変換
-      allocate(nei_counter(ntot),nei_list(200,ntot))
 !
       dt=41*1.d0
 
-      
       call vol_inverse(h,vol,h_inver)
 
 !　スケール  
@@ -116,13 +111,13 @@
       call cpu_time(t2)
       write(*,*)tempk,t2-t1
 !
-      call vcl(h,s,ntot,nei_counter,nei_list)
-      call pot(f,frc,s,ntot,h,str,nei_counter,nei_list)
+      call pot(f,frc,s,ntot,h,str)
 
 !=========================計算スタート====================
       do istep=1,maxstep
 
 !　速度の更新
+      v=matmul(h,ds)
       do i=1,ntot
         v(:,i)=v(:,i)+0.5d0*dt*frc(:,i)/mass(i)
         ds(:,i)=matmul(h_inver,v(:,i))
@@ -137,10 +132,10 @@
         enddo
       enddo
 ! 
-!      call vcl(h,s,ntot,nei_counter,nei_list)
-      call pot(f,frc,s,ntot,h,str,nei_counter,nei_list)
+      call pot(f,frc,s,ntot,h,str)
 
 !　速度の更新
+      v=matmul(h,ds)
       do i=1,ntot
         v(:,i)=v(:,i)+0.5d0*dt*frc(:,i)/mass(i)
         ds(:,i)=matmul(h_inver,v(:,i))
@@ -154,7 +149,6 @@
       enddo
       tempk=ekin*2.d0/3.d0/ntot/kb
 !
-
       call pressure(istep,maxstep,v,ntot,str,vol,p,gpa,smap)
 
 !　xyzファイルの出力
@@ -180,8 +174,7 @@
       endif
 !
 
-  !    write(*,*)istep,tempk,gpa(istep),smap(istep),f+ekin
-      write(*,*)istep,ekin,f,ekin+f
+      write(*,*)istep,tempk,gpa(istep),smap(istep),f+ekin
       
       rec1(istep)=tempk
       rec2(istep)=f
@@ -195,7 +188,7 @@
 !=====================loopここまで==============================
 
 !　グラフ
-      open(12,file='t2.dat')
+      open(12,file='t.dat')
       do i=1,maxstep
         write(12,*)rec1(i),rec2(i),rec3(i),rec4(i),rec5(i),rec6(i)
      &             ,gpa(i),smap(i)
@@ -203,6 +196,7 @@
       close(12)  
 !
 !　記録
+!
 !      call kiroku(h,ntot,bohr,x,v)
 !
 
@@ -234,21 +228,22 @@
       return
       end
 !
-!　listの作成
-      subroutine vcl(h,s,ntot,nei_counter,nei_list)
+!　call pot
+      subroutine pot(f,frc,s,ntot,h,str)
       implicit real*8 (a-h,o-z)
-      integer hx_lc,hy_lc,hz_lc,hxyz_lc,hyz_lc
-      real*8 h(3,3),s(3,ntot),rij(3)
-      parameter(sgm=3.4d0/0.5292d0)
+      integer hx_lc,hy_lc,hz_lc,hxyz_lc,hyz_lc,pea
+      real*8 frc(3,ntot),s(3,ntot),h(3,3),str(3,3),rij(3)
+      parameter(sgm=3.4d0/0.5292d0)  
+      parameter(eps=120d0/11605d0/27.2116d0)
+      parameter(sgm12=sgm**12,sgm6=sgm**6)
       parameter(cutoff=2.5d0*sgm)
       integer,allocatable,dimension(:)::lshd,lscl
-      integer nei_counter(ntot),nei_list(200,ntot)
-      write(*,*)cutoff,h(1,1)
 
+      frc=0.d0
+      str=0.d0
+      pea=0
 
-      nei_counter=0
       hx_lc=ceiling(sqrt(dot_product(h(:,1),h(:,1)))/cutoff)-1 !x座標のセル数
-      write(*,*)hx_lc
       hy_lc=ceiling(sqrt(dot_product(h(:,2),h(:,2)))/cutoff)-1
       hz_lc=ceiling(sqrt(dot_product(h(:,3),h(:,3)))/cutoff)-1
       hyz_lc=hy_lc*hz_lc     !セルのyz平面の数
@@ -256,6 +251,7 @@
       hx_cell=1.d0/hx_lc     !各方向のセルの長さ
       hy_cell=1.d0/hy_lc
       hz_cell=1.d0/hz_lc
+
       allocate(lshd(hxyz_lc),lscl(ntot))
       lshd=0
       do i=1,ntot
@@ -273,6 +269,8 @@
       kuxmax=1
       kuymax=1
       kuzmax=1
+      f=0d0
+      
       do mz=0,hz_lc-1
       do my=0,hy_lc-1
       do mx=0,hx_lc-1
@@ -295,14 +293,21 @@
             do while(j>0)
               if (i<j) then
                 rij(:)=s(:,i)-s(:,j)
-                rij(:)=rij(:)-anint(rij(:))
+                rij(:)=rij(:)-dnint(rij(:))
                 rij=matmul(h,rij)
                 rij2=rij(1)**2+rij(2)**2+rij(3)**2
-                if (rij2<(cutoff*1.2d0)**2) then
-                 nei_counter(i)=nei_counter(i)+1
-                 nei_counter(j)=nei_counter(j)+1
-                 nei_list(nei_counter(i),i)=j
-                 nei_list(nei_counter(j),j)=i 
+                if (rij2<(cutoff)**2) then
+                  pea=pea+1
+                  f=f+4d0*eps*(sgm12/rij2**6-sgm6/rij2**3)
+                  factor=4d0*eps*
+     &            (-12d0*sgm12/rij2**7+6d0*sgm6/rij2**4)
+                  frc(:,i)=frc(:,i)-factor*rij(:)
+                  frc(:,j)=frc(:,j)+factor*rij(:)
+                  do k=1,3
+                  do l=1,3
+                   str(k,l)=str(k,l)-factor*rij(k)*rij(l)
+                  enddo
+                  enddo
                 endif
               endif
               j=lscl(j)
@@ -311,56 +316,13 @@
           enddo
         enddo
         enddo
-        enddo   
+        enddo
       enddo
       enddo
       enddo
       deallocate(lshd,lscl)
       return
       end
-
-! call pot
-      subroutine pot(f,frc,s,ntot,h,str,nei_counter,nei_list)
-      implicit real*8 (a-h,o-z)
-      real*8 frc(3,ntot),s(3,ntot),h(3,3),str(3,3),rij(3)
-      parameter(sgm=3.4d0/0.5292d0)  
-      parameter(eps=120d0/11605d0/27.2116d0)
-      parameter(sgm12=sgm**12,sgm6=sgm**6)
-      parameter(cutoff=2.5d0*sgm)
-      integer nei_counter(ntot),nei_list(200,ntot),a,b
-
-      frc=0.d0
-      str=0.d0
-      f=0.d0
-
-      do a=1,ntot
-      do b=1,nei_counter(a)
-       j=nei_list(b,a)
-       if (a<j)then
-       rij=s(:,a)-s(:,j)
-       rij=rij-anint(rij)
-       rij=matmul(h,rij)
-       rij2=dot_product(rij,rij)
-       if (rij2<cutoff**2)then
-        f=f+4d0*eps*(sgm12/rij2**6-sgm6/rij2**3)
-        factor=4d0*eps*
-     &       (-12d0*sgm12/rij2**7+6d0*sgm6/rij2**4)
-        frc(:,a)=frc(:,a)-factor*rij(:)
-        frc(:,j)=frc(:,j)+factor*rij(:)
-        do k=1,3
-        do l=1,3
-         str(k,l)=str(k,l)-factor*rij(k)*rij(l)
-        enddo
-        enddo
-       endif
-       endif
-      enddo
-      enddo
-
-      return
-      end
-
-
 !
 !subrutine ishift  
       subroutine get_ishift(lc,i,ishift)
@@ -430,4 +392,5 @@
       close(13)
       end
 !
+
 
