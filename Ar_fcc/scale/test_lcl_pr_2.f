@@ -33,7 +33,7 @@
         allocate(x(3,ntot),v(3,ntot),frc(3,ntot),s(3,ntot),ds(3,ntot)
      &           ,mass(ntot),lsp(ntot))
        do i=1,ntot
-        read(10,*)lsp(i),dammy,x(1,i),x(2,i),x(3,i),v(1,i),v(2,i),v(3,i)
+        read(10,*)lsp(i),dummy,x(1,i),x(2,i),x(3,i),v(1,i),v(2,i),v(3,i)
         if(lsp(i)=='Ar') mass(i)=40d0*1836d0
         if(lsp(i)/='Ar') stop
        enddo
@@ -53,7 +53,7 @@
         s(:,i)=matmul(h_inver,x(:,i))
         ds(:,i)=matmul(h_inver,v(:,i))
       enddo 
-      call pot(f,frc,s,ntot,h,str)
+      call pot(f,frc,s,x,ntot,h,str)
 
 ! 温度圧力の計算
       ekin=0.d0
@@ -62,12 +62,20 @@
       enddo
       tempk=ekin*2.d0/3.d0/ntot/kb
       call p_tesor(s,ds,h,dh,str,ntot,mass,vol,p,e_kin)
-      write(*,*)tempk,p(1,1)*Gp
 !
       Preg=0.d0
       Preg(1,1)=1d-4/Gp; Preg(2,2)=1d-4/Gp; Preg(3,3)=1d-4/Gp 
+      Preg(1,2)=1d-1/Gp
       dh=0.d0
       w=5.d6
+      write(*,'(A,1x,F0.2,A,4x,A,1x,F0.2,A)')
+     &  '初期温度',tempk,'K','初期圧力',p(1,1)*Gp*1d4,'気圧'
+      write(*,'(A,1x,F0.2,A)')
+     &  '目標圧力',Preg(1,1)*Gp*1d4,'気圧+せん断応力'
+      write(*,'(A,f0.2,A,5x,A,I0,A)')
+     & 'dt:',dt/41.d0,'fs','maxstep:',maxstep,'step'
+
+      read(*,*)
 
 !=========================計算スタート====================
       do istep=1,maxstep
@@ -91,8 +99,9 @@
       enddo
       h=h+dt*dh
 ! 
+      x=matmul(h,s)
       call vol_inverse(h,vol,h_inver,sgm)
-      call pot(f,frc,s,ntot,h,str)
+      call pot(f,frc,s,x,ntot,h,str)
 
 !　速度の更新
       GinvGdot=matmul(h_inver,dh)+transpose(matmul(h_inver,dh))
@@ -107,7 +116,7 @@
       ekin=(e_kin(1,1)+e_kin(2,2)+e_kin(3,3))*0.5d0
       tempk=ekin*2.d0/3.d0/ntot/kb
       gpa(istep)=(p(1,1)+p(2,2)+p(3,3))/3.d0
-!
+
 
 !　xyzファイルの出力
       filename='out000.xyz'
@@ -133,7 +142,7 @@
 !
       hamil=ekin+f+0.5d0*w*sum(dh**2)
      &    +vol*(Preg(1,1)+Preg(2,2)+Preg(3,3))/3.d0
-      write(*,*)istep,tempk,gpa(istep)*Gp,h(1,1),h(2,2),h(3,3),hamil
+      write(*,*)istep,tempk,gpa(istep)*Gp,hamil
       
       rec1(istep)=tempk
       rec2(istep)=f
@@ -149,7 +158,7 @@
 !　グラフ
       smap=0.d0
       call sma(gpa,smap,maxstep)
-      open(12,file='t.dat')
+      open(12,file='t2.dat')
       do i=1,maxstep
         write(12,*)rec1(i),rec2(i),rec3(i),rec4(i),rec5(i),rec6(i)
      &             ,gpa(i)*gp,smap(i)*Gp
@@ -191,10 +200,11 @@
       end
 !
 !　call pot
-      subroutine pot(f,frc,s,ntot,h,str)
+      subroutine pot(f,frc,s,x,ntot,h,str)
       implicit real*8 (a-h,o-z)
       integer hx_lc,hy_lc,hz_lc,hxyz_lc,hyz_lc,pea
-      real*8 frc(3,ntot),s(3,ntot),h(3,3),str(3,3),rij(3)
+      real*8 frc(3,ntot),x(3,ntot),h(3,3),str(3,3),rij(3)
+      real*8 hx,hy,hz,t(3,8),s(3,ntot)
       parameter(sgm=3.4d0/0.5292d0)  
       parameter(eps=120d0/11605d0/27.2116d0)
       parameter(sgm12=sgm**12,sgm6=sgm**6)
@@ -205,32 +215,51 @@
       str=0.d0
       pea=0
 
-      hx_lc=ceiling(sqrt(dot_product(h(:,1),h(:,1)))/cutoff)-1 !x座標のセル数
-      hy_lc=ceiling(sqrt(dot_product(h(:,2),h(:,2)))/cutoff)-1
-      hz_lc=ceiling(sqrt(dot_product(h(:,3),h(:,3)))/cutoff)-1
-      hyz_lc=hy_lc*hz_lc     !セルのyz平面の数
-      hxyz_lc=hyz_lc*hx_lc
-      hx_cell=1.d0/hx_lc     !各方向のセルの長さ
-      hy_cell=1.d0/hy_lc
-      hz_cell=1.d0/hz_lc
+ !シミュレーションボックスが入る立方体の各頂点と最小最大座標、立方体の各辺の長さ
+      t(:,1)=(/0.d0,0.d0,0.d0/)
+      t(:,2)=h(:,1)
+      t(:,3)=h(:,1)+h(:,2)
+      t(:,4)=h(:,2)
+      t(:,5)=h(:,3)
+      t(:,6)=h(:,1)+h(:,3)
+      t(:,7)=h(:,1)+h(:,2)+h(:,3)
+      t(:,8)=h(:,2)+h(:,3)
+      xmin=minval(t(1,:))
+      xmax=maxval(t(1,:))
+      ymin=minval(t(2,:))
+      ymax=maxval(t(2,:))
+      zmin=minval(t(3,:))
+      zmax=maxval(t(3,:))
+      hx=xmax-xmin
+      hy=ymax-ymin
+      hz=zmax-zmin
 
+      hx_lc=int(hx/cutoff) !x座標のセル数
+      hy_lc=int(hy/cutoff)
+      hz_lc=int(hz/cutoff)
+      hyz_lc=hy_lc*hz_lc     !セルのyz平面の数
+      hxyz_lc=hyz_lc*hx_lc   !総セル数
+      hx_cell=hx/hx_lc     !各方向のセルの長さ
+      hy_cell=hy/hy_lc
+      hz_cell=hz/hz_lc
+      
       allocate(lshd(hxyz_lc),lscl(ntot))
       lshd=0
       do i=1,ntot
-        mx=int(s(1,i)/hx_cell)
-        my=int(s(2,i)/hy_cell)
-        mz=int(s(3,i)/hz_cell)
-        mx=min(max(mx,0),hx_lc-1)
-        my=min(max(my,0),hy_lc-1)
-        mz=min(max(mz,0),hz_lc-1)
+        rx=x(1,i)-xmin
+        ry=x(2,i)-ymin
+        rz=x(3,i)-zmin
+        mx=int(rx/hx_cell)
+        my=int(ry/hy_cell)
+        mz=int(rz/hz_cell)
         m=mx*hyz_lc+my*hz_lc+mz+1
         lscl(i)=lshd(m)
         lshd(m)=i
       enddo
 
-      kuxmax=1
-      kuymax=1
-      kuzmax=1
+      kuxmax=ceiling(cutoff/hx_cell)
+      kuymax=ceiling(cutoff/hy_cell)
+      kuzmax=ceiling(cutoff/hz_cell)
       f=0d0
       
       do mz=0,hz_lc-1
@@ -255,8 +284,8 @@
             do while(j>0)
               if (i<j) then
                 rij(:)=s(:,i)-s(:,j)
-                rij(:)=rij(:)-dnint(rij(:))
-                rij=matmul(h,rij)
+                rij=rij-dnint(rij)   
+                rij=matmul(h,rij)        
                 rij2=rij(1)**2+rij(2)**2+rij(3)**2
                 if (rij2<(cutoff)**2) then
                   pea=pea+1
