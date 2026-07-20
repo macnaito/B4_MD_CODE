@@ -1,5 +1,5 @@
 !　スケールした座標でのMD エネルギー保存を確認
-!　速度こうしんはvで行う　lcl parrinello-rahman
+!　lclを少し改良　parrinello-rahman
       program ljmd
       
       implicit real*8 (a-h,o-z)
@@ -65,13 +65,13 @@
 !
       Preg=0.d0
       Preg(1,1)=1d-4/Gp; Preg(2,2)=1d-4/Gp; Preg(3,3)=1d-4/Gp 
-      Preg(1,2)=1d-1/Gp
+
       dh=0.d0
       w=5.d6
       write(*,'(A,1x,F0.2,A,4x,A,1x,F0.2,A)')
      &  '初期温度',tempk,'K','初期圧力',p(1,1)*Gp*1d4,'気圧'
       write(*,'(A,1x,F0.2,A)')
-     &  '目標圧力',Preg(1,1)*Gp*1d4,'気圧+せん断応力'
+     &  '目標圧力',Preg(1,1)*Gp*1d4,'気圧'
       write(*,'(A,f0.2,A,5x,A,I0,A)')
      & 'dt:',dt/41.d0,'fs','maxstep:',maxstep,'step'
 

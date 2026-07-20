@@ -1,5 +1,5 @@
 !　スケールした座標でのMD エネルギー保存を確認
-!　速度こうしんはvで行う　lcl parrinello-rahman
+!　速度こうしんはdsで行う　lcl parrinello-rahman
       program ljmd
       
       implicit real*8 (a-h,o-z)

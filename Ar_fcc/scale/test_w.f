@@ -1,5 +1,6 @@
 !　スケールした座標でのMD エネルギー保存を確認
-!　軸の固定　h,vhの下三角成分を０にする？？？
+!　lclを少し改良　parrinello_rahman+nose_hoover
+!　変数のWとtauを決めたい
 
       program ljmd
       
@@ -18,15 +19,29 @@
       real*8 p(3,3),h(3,3),h_inver(3,3),sgm(3,3)
       real*8 str(3,3),e_kin(3,3)
       real*8 dh(3,3),Preg(3,3),GinvGdot(3,3)
+      real*8 Treg,Q,tau,xi,gkbt,eta
+      real*8 tauloop(7)
+      integer c
 
       real*8,allocatable,dimension(:)::rec1,rec2,rec3,rec4,rec5,rec6
       real*8,allocatable,dimension(:)::gpa,smap
 
-      maxstep=2000
+      maxstep=3000
       allocate(gpa(maxstep),smap(maxstep),rec1(maxstep),rec2(maxstep)
      &        ,rec3(maxstep),rec4(maxstep),rec5(maxstep),rec6(maxstep))
 
+      tauloop=[40,50,60,70,80,90,100]
+
+      do c=1,7
+      tau=tauloop(c)*dt
+
       k=0
+      eta=0.d0
+      hmax=-1.d10
+      hmin=1.d10
+      pmax=-1d10
+      pmin=1d10
+      xi=0.d0
 
 !　.datファイルの読み込み      
       open(10,file='fainal.dat')
@@ -45,10 +60,8 @@
       h=h/bohr
       x(:,:)=x(:,:)/bohr    !a.u.に変換
 !
-      dt=41*1.d0
-
+      dt=41.d0*3.d0
       call vol_inverse(h,vol,h_inver,sgm)
-
 !　スケール  
       do i=1,ntot
         s(:,i)=matmul(h_inver,x(:,i))
@@ -62,34 +75,43 @@
        ekin=ekin+0.5d0*mass(i)*sum(v(:,i)**2)
       enddo
       tempk=ekin*2.d0/3.d0/ntot/kb
-      call p_tesor(s,ds,h,dh,str,ntot,mass,vol,p,e_kin)
+      call p_tesor(s,ds,h,dh,str,ntot,mass,vol,p,e_kin,ekin)
+      gpa(1)=(p(1,1)+p(2,2)+p(3,3))/3.d0
 !
       Preg=0.d0
-      Preg(1,1)=1d-4/Gp; Preg(2,2)=1d-4/Gp; Preg(3,3)=1d-4/Gp 
-      Preg(1,2)=1d-1/Gp
+      Preg(1,1)=1d-4/Gp; Preg(2,2)=1d-4/Gp; Preg(3,3)=1d-4/Gp
       dh=0.d0
-      w=5.d6
-      write(*,'(A,1x,F0.2,A,4x,A,1x,F0.2,A)')
-     &  '初期温度',tempk,'K','初期圧力',p(1,1)*Gp*1d4,'気圧'
-      write(*,'(A,1x,F0.2,A)')
-     &  '目標圧力',Preg(1,1)*Gp*1d4,'気圧＋せん断'
-      write(*,'(A,f0.2,A,5x,A,I0,A)')
-     & 'dt:',dt/41.d0,'fs','maxstep:',maxstep,'step'
+      w=3.d9
+      Treg=50.d0
+ !     tau=65.d0*dt
+      gkbt=3.d0*ntot*Treg*kb
+      Q=gkbt*tau**2
+      xi=0.d0
 
-      read(*,*)
+ !     write(*,'(A,1x,F0.2,A,4x,A,1x,F0.2,A)')
+ !    &  '初期温度',tempk,'K','初期圧力',gpa(1)*Gp*1d4,'気圧'
+ !     write(*,'(A,1x,F0.2,A,4x,A,1x,F0.2,A)')
+ !    &  '目標温度',Treg,'K','目標圧力',Preg(1,1)*Gp*1d4,'気圧'
+ !     write(*,'(A,f0.2,A,2x,A,I0,A)')
+ !    & 'dt:',dt/41.d0,'fs','maxstep:',maxstep,'step'
+ !     write(*,*)'温度制御nosehoover 圧力制御parirellorahman'
+
+ !     read(*,*)
 
 !=========================計算スタート====================
       do istep=1,maxstep
 
 !　速度の更新
-      GinvGdot=matmul(h_inver,dh)+transpose(matmul(h_inver,dh))
+      GinvGdot=matmul(dh,h_inver)+transpose(matmul(dh,h_inver))
       do i=1,ntot
         ds(:,i)=ds(:,i)+0.5d0*dt*matmul(h_inver,frc(:,i)/mass(i))
      &                 -0.5d0*dt*matmul(GinvGdot,ds(:,i))
+     &                 -0.5d0*dt*xi*ds(:,i)
       enddo
-      call p_tesor(s,ds,h,dh,str,ntot,mass,vol,p,e_kin)
+      call p_tesor(s,ds,h,dh,str,ntot,mass,vol,p,e_kin,ekin)
       dh=dh+0.5d0*dt*matmul((p-Preg),sgm)/w
-      dh(2,1)=0.d0;dh(3,1)=0.d0;dh(3,2)=0.d0
+      xi=xi+0.5d0*dt*(2.d0*ekin-gkbt)/Q
+      eta=eta+xi*0.5d0*dt
 !         
 !　位置の更新+pbc
       do i=1,ntot
@@ -100,26 +122,29 @@
         enddo
       enddo
       h=h+dt*dh
-      h(2,1)=0.d0;h(3,1)=0.d0;h(3,2)=0.d0
 ! 
       x=matmul(h,s)
       call vol_inverse(h,vol,h_inver,sgm)
       call pot(f,frc,s,x,ntot,h,str)
 
 !　速度の更新
-      GinvGdot=matmul(h_inver,dh)+transpose(matmul(h_inver,dh))
+      GinvGdot=matmul(dh,h_inver)+transpose(matmul(dh,h_inver))
       do i=1,ntot
         ds(:,i)=ds(:,i)+0.5d0*dt*matmul(h_inver,frc(:,i)/mass(i))
      &                 -0.5d0*dt*matmul(GinvGdot,ds(:,i))
+     &                 -0.5d0*dt*xi*ds(:,i)
       enddo
-      call p_tesor(s,ds,h,dh,str,ntot,mass,vol,p,e_kin)
+      call p_tesor(s,ds,h,dh,str,ntot,mass,vol,p,e_kin,ekin)
       dh=dh+0.5d0*dt*matmul((p-Preg),sgm)/w
-      dh(2,1)=0.d0;dh(3,1)=0.d0;dh(3,2)=0.d0
+      xi=xi+0.5d0*dt*(2.d0*ekin-gkbt)/Q
+      eta=eta+xi*0.5d0*dt
 !
 !　温度・圧力の計算
-      ekin=(e_kin(1,1)+e_kin(2,2)+e_kin(3,3))*0.5d0
       tempk=ekin*2.d0/3.d0/ntot/kb
       gpa(istep)=(p(1,1)+p(2,2)+p(3,3))/3.d0
+      if(istep>400) then
+       pmax=max(pmax,gpa(istep));pmin=min(pmin,gpa(istep))
+      endif
 
 
 !　xyzファイルの出力
@@ -145,8 +170,10 @@
       endif
 !
       hamil=ekin+f+0.5d0*w*sum(dh**2)
-     &    +vol*(Preg(1,1)+Preg(2,2)+Preg(3,3))/3.d0+vol*Preg(1,2)
-      write(*,*)istep,tempk,gpa(istep)*Gp,hamil
+     &    +vol*(Preg(1,1)+Preg(2,2)+Preg(3,3))/3.d0
+     &    +0.5d0*Q*xi**2+gkbt*eta
+      hmax=max(hmax,hamil);hmin=min(hmin,hamil)
+ !     write(*,*)istep,tempk,gpa(istep)*Gp,hamil
       
       rec1(istep)=tempk
       rec2(istep)=f
@@ -156,26 +183,29 @@
       rec6(istep)=hamil
       
       enddo
-
 !=====================loopここまで==============================
+
+      write(*,*)c
+      write(*,"(5x,F0.4,A)")
+     &     abs((hmax-hmin)/hamil*100),'%'
+      write(*,*)pmax*Gp,pmin*Gp,(pmax-pmin)*Gp
+      deallocate(x,v,frc,s,ds,mass,lsp)
+
+      enddo
+
+      
 
 !　グラフ
       smap=0.d0
       call sma(gpa,smap,maxstep)
-      open(12,file='t2.dat')
+      open(12,file='testw.dat')
       do i=1,maxstep
         write(12,*)rec1(i),rec2(i),rec3(i),rec4(i),rec5(i),rec6(i)
      &             ,gpa(i)*gp,smap(i)*Gp
       enddo
       close(12)  
 !
-!　記録
-      do i=1,ntot
-        x(:,i)=matmul(h,s(:,i))
-        v(:,i)=matmul(h,ds(:,i))+matmul(dh,s(:,i))
-      enddo
- !     call kiroku(h,ntot,bohr,x,v)
-!
+
       end program
 
 
@@ -319,7 +349,7 @@
       return
       end
 !
-!subrutine ishift  
+! subrutine ishift  
       subroutine get_ishift(lc,i,ishift)
       implicit none
       integer lc,i,ishift
@@ -360,13 +390,14 @@
       end
 !
 !　圧力テンソル
-      subroutine p_tesor(s,ds,h,dh,str,ntot,mass,vol,p,e_kin)
+      subroutine p_tesor(s,ds,h,dh,str,ntot,mass,vol,p,e_kin,ekin)
       implicit none
       integer ntot,i,k,l
       real*8 s(3,ntot),ds(3,ntot),str(3,3),p(3,3),h(3,3)
-      real*8 e_kin(3,3),mass(ntot),vol,vi(3),dh(3,3)
+      real*8 e_kin(3,3),mass(ntot),vol,vi(3),dh(3,3),ekin
             
       e_kin=0.d0
+      ekin=0.d0
       do i=1,ntot
         vi=matmul(h,ds(:,i))+matmul(dh,s(:,i))
        do k=1,3
@@ -375,6 +406,7 @@
        enddo
        enddo
       enddo
+      ekin=(e_kin(1,1)+e_kin(2,2)+e_kin(3,3))*0.5d0
       p=(e_kin+str)/vol
       return
       end
