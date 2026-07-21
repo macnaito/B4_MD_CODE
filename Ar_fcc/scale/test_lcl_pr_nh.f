@@ -23,7 +23,7 @@
       real*8,allocatable,dimension(:)::rec1,rec2,rec3,rec4,rec5,rec6
       real*8,allocatable,dimension(:)::gpa,smap
 
-      maxstep=5000
+      maxstep=10000
       allocate(gpa(maxstep),smap(maxstep),rec1(maxstep),rec2(maxstep)
      &        ,rec3(maxstep),rec4(maxstep),rec5(maxstep),rec6(maxstep))
 
@@ -52,7 +52,7 @@
       h=h/bohr
       x(:,:)=x(:,:)/bohr    !a.u.に変換
 !
-      dt=41.d0*5.d0
+      dt=41.d0*3.d0
       call vol_inverse(h,vol,h_inver,sgm)
 !　スケール  
       do i=1,ntot
@@ -74,7 +74,7 @@
       Preg(1,1)=1d-4/Gp; Preg(2,2)=1d-4/Gp; Preg(3,3)=1d-4/Gp
       dh=0.d0
       w=5.d7
-      Treg=50.d0
+      Treg=50.d0 
       tau=65.d0*dt
       gkbt=3.d0*ntot*Treg*kb
       Q=gkbt*tau**2

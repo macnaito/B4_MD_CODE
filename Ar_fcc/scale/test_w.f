@@ -20,7 +20,7 @@
       real*8 str(3,3),e_kin(3,3)
       real*8 dh(3,3),Preg(3,3),GinvGdot(3,3)
       real*8 Treg,Q,tau,xi,gkbt,eta
-      real*8 tauloop(7)
+      real*8 wloop(7)
       integer c
 
       real*8,allocatable,dimension(:)::rec1,rec2,rec3,rec4,rec5,rec6
@@ -30,10 +30,10 @@
       allocate(gpa(maxstep),smap(maxstep),rec1(maxstep),rec2(maxstep)
      &        ,rec3(maxstep),rec4(maxstep),rec5(maxstep),rec6(maxstep))
 
-      tauloop=[40,50,60,70,80,90,100]
+      wloop=[1d8,5d8,1d9,5d9,1d10,5d10,1d11]
 
       do c=1,7
-      tau=tauloop(c)*dt
+      w=wloop(c)*dt
 
       k=0
       eta=0.d0
@@ -60,7 +60,7 @@
       h=h/bohr
       x(:,:)=x(:,:)/bohr    !a.u.に変換
 !
-      dt=41.d0*3.d0
+      dt=41.d0*5.d0
       call vol_inverse(h,vol,h_inver,sgm)
 !　スケール  
       do i=1,ntot
@@ -81,9 +81,9 @@
       Preg=0.d0
       Preg(1,1)=1d-4/Gp; Preg(2,2)=1d-4/Gp; Preg(3,3)=1d-4/Gp
       dh=0.d0
-      w=3.d9
+ !     w=3.d9
       Treg=50.d0
- !     tau=65.d0*dt
+      tau=65.d0*dt
       gkbt=3.d0*ntot*Treg*kb
       Q=gkbt*tau**2
       xi=0.d0

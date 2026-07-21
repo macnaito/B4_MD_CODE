@@ -1,5 +1,5 @@
 !　スケールした座標でのMD エネルギー保存を確認
-!　速度こうしんはdsで行う　lcl parrinello-rahman
+!　lcl parrinello-rahman
       program ljmd
       
       implicit real*8 (a-h,o-z)
@@ -16,7 +16,7 @@
       character*40 filename
       real*8 p(3,3),h(3,3),h_inver(3,3),sgm(3,3)
       real*8 str(3,3),e_kin(3,3)
-      real*8 dh(3,3),Preg(3,3),GinvGdot(3,3)
+      real*8 dh(3,3),Preg(3,3),GinvGdot(3,3),GinvGdot_(3,3),G(3,3)
 
       real*8,allocatable,dimension(:)::rec1,rec2,rec3,rec4,rec5,rec6
       real*8,allocatable,dimension(:)::gpa,smap
@@ -74,6 +74,10 @@
 
 !　速度の更新
       GinvGdot=matmul(h_inver,dh)+transpose(matmul(h_inver,dh))
+      G=matmul(h_inver,dh)
+      GinvGdot_=matmul(matmul(h_inver,G),h)+G
+      write(*,*)GinvGdot_-GinvGdot   !1d-10の差　丸め誤差？
+      
       do i=1,ntot
         ds(:,i)=ds(:,i)+0.5d0*dt*matmul(h_inver,frc(:,i)/mass(i))
      &                 -0.5d0*dt*matmul(GinvGdot,ds(:,i))

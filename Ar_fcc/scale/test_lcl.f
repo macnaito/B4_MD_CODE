@@ -20,14 +20,14 @@
       real*8,allocatable,dimension(:)::rec1,rec2,rec3,rec4,rec5,rec6
       real*8,allocatable,dimension(:)::gpa,smap
 
-      maxstep=2000
+      maxstep=3000
       allocate(gpa(maxstep),smap(maxstep),rec1(maxstep),rec2(maxstep)
      &        ,rec3(maxstep),rec4(maxstep),rec5(maxstep),rec6(maxstep))
 
        k=0
 
 !　.datファイルの読み込み      
-      open(10,file='init.dat')
+      open(10,file='fainal.dat')
        read(10,*)ntot
         allocate(x(3,ntot),v(3,ntot),frc(3,ntot),s(3,ntot),ds(3,ntot),
      &              mass(ntot),lsp(ntot))
@@ -43,7 +43,7 @@
       h=h/bohr
       x(:,:)=x(:,:)/bohr    !a.u.に変換
 !
-      dt=41*1.d0
+      dt=41*5.d0
 
       call vol_inverse(h,vol,h_inver)
 
