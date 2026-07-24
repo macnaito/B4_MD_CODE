@@ -74,9 +74,9 @@
 
 !　速度の更新
       GinvGdot=matmul(h_inver,dh)+transpose(matmul(h_inver,dh))
-      G=matmul(h_inver,dh)
-      GinvGdot_=matmul(matmul(h_inver,G),h)+G
-      write(*,*)GinvGdot_-GinvGdot   !1d-10の差　丸め誤差？
+ !     G=matmul(h_inver,dh)
+ !     GinvGdot_=matmul(matmul(h_inver,G),h)+G
+ !     write(*,*)GinvGdot_-GinvGdot   !1d-10の差　丸め誤差？
       
       do i=1,ntot
         ds(:,i)=ds(:,i)+0.5d0*dt*matmul(h_inver,frc(:,i)/mass(i))

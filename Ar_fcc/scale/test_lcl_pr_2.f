@@ -44,7 +44,7 @@
       h=h/bohr
       x(:,:)=x(:,:)/bohr    !a.u.に変換
 !
-      dt=41*1.d0
+      dt=41.d0*3.d0
 
       call vol_inverse(h,vol,h_inver,sgm)
 
@@ -64,7 +64,8 @@
       call p_tesor(s,ds,h,dh,str,ntot,mass,vol,p,e_kin)
 !
       Preg=0.d0
-      Preg(1,1)=1d-4/Gp; Preg(2,2)=1d-4/Gp; Preg(3,3)=1d-4/Gp 
+      Preg(1,1)=1d-1/Gp; Preg(2,2)=1d-1/Gp; Preg(3,3)=1d-1/Gp 
+      preg(2,1)=1d-1/Gp;preg(1,2)=1d-1/Gp
 
       dh=0.d0
       w=5.d6

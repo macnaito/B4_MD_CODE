@@ -81,6 +81,7 @@
       call pot(f,frc,s,ntot,h,str,nei_counter,nei_list)
 
 !=========================計算スタート====================
+      call cpu_time(t1)
       do istep=1,maxstep
 
 !　速度の更新
@@ -157,6 +158,8 @@
       rec6(istep)=0.d0
       
       enddo
+      call cpu_time(t2)
+      write(*,*)t2-t1
 
 !=====================loopここまで==============================
 

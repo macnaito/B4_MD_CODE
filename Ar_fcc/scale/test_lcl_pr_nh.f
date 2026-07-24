@@ -1,5 +1,8 @@
-!　スケールした座標でのMD エネルギー保存を確認
-!　lclを少し改良　parrinello_rahman+nose_hoover
+!　スケールした座標でのMD
+!　リンクリスト　実座標の直方体を作成　無駄が多い？   
+!　parrinello_rahman+nose_hoover
+
+
       program ljmd
       
       implicit real*8 (a-h,o-z)
@@ -16,14 +19,14 @@
       character*40 filename
       real*8 p(3,3),h(3,3),h_inver(3,3),sgm(3,3)
       real*8 str(3,3),e_kin(3,3)
-      real*8 dh(3,3),Preg(3,3),GinvGdot(3,3)
-      real*8 Treg,Q,tau,xi,gkbt,eta
-
+      real*8 dh(3,3),Preg(3,3),GinvGdot(3,3) ! Gはtranspose(h)*h　メトリックテンソル
+                                             ! GinvはGの逆行列、GdotはGの時間微分
+                                             !Ginv*Gdotをかけて、式変形すると、、
+      real*8 Treg,Q,tau,xi,gkbt,eta  !nosehooverの変数
 
       real*8,allocatable,dimension(:)::rec1,rec2,rec3,rec4,rec5,rec6
       real*8,allocatable,dimension(:)::gpa,smap
-
-      maxstep=10000
+      maxstep=2000
       allocate(gpa(maxstep),smap(maxstep),rec1(maxstep),rec2(maxstep)
      &        ,rec3(maxstep),rec4(maxstep),rec5(maxstep),rec6(maxstep))
 
@@ -36,7 +39,7 @@
       xi=0.d0
 
 !　.datファイルの読み込み      
-      open(10,file='fainal.dat')
+      open(10,file='init.dat')
        read(10,*)ntot
         allocate(x(3,ntot),v(3,ntot),frc(3,ntot),s(3,ntot),ds(3,ntot)
      &           ,mass(ntot),lsp(ntot))
@@ -52,8 +55,9 @@
       h=h/bohr
       x(:,:)=x(:,:)/bohr    !a.u.に変換
 !
-      dt=41.d0*3.d0
+      dt=41.d0*1.d0
       call vol_inverse(h,vol,h_inver,sgm)
+      
 !　スケール  
       do i=1,ntot
         s(:,i)=matmul(h_inver,x(:,i))
@@ -70,8 +74,9 @@
       call p_tesor(s,ds,h,dh,str,ntot,mass,vol,p,e_kin,ekin)
       gpa(1)=(p(1,1)+p(2,2)+p(3,3))/3.d0
 !
-      Preg=0.d0
-      Preg(1,1)=1d-4/Gp; Preg(2,2)=1d-4/Gp; Preg(3,3)=1d-4/Gp
+      !目標圧力、目標温度とそれぞれのパラメータ　粒子数によって変わると思う。
+      Preg=0.d0  !目標圧力はギガパスカルに/Gpで原子単位形にする
+      Preg(1,1)=1d-1/Gp; Preg(2,2)=1d-1/Gp; Preg(3,3)=1d-1/Gp 
       dh=0.d0
       w=5.d7
       Treg=50.d0 
@@ -82,8 +87,8 @@
 
       write(*,'(A,1x,F0.2,A,4x,A,1x,F0.2,A)')
      &  '初期温度',tempk,'K','初期圧力',gpa(1)*Gp*1d4,'気圧'
-      write(*,'(A,1x,F0.2,A,4x,A,1x,F0.2,A)')
-     &  '目標温度',Treg,'K','目標圧力',Preg(1,1)*Gp*1d4,'気圧'
+      write(*,'(A,1x,F0.2,A,4x,A,1x,9F0.2,A)')
+     &  '目標温度',Treg,'K','目標圧力',Preg*Gp,'Gpa'
       write(*,'(A,f0.2,A,2x,A,I0,A)')
      & 'dt:',dt/41.d0,'fs','maxstep:',maxstep,'step'
       write(*,*)'温度制御nosehoover 圧力制御parirellorahman'
@@ -91,14 +96,15 @@
       read(*,*)
 
 !=========================計算スタート====================
+      call cpu_time(t1)
       do istep=1,maxstep
 
 !　速度の更新
       GinvGdot=matmul(h_inver,dh)+transpose(matmul(h_inver,dh))
       do i=1,ntot
         ds(:,i)=ds(:,i)+0.5d0*dt*matmul(h_inver,frc(:,i)/mass(i))
-     &                 -0.5d0*dt*matmul(GinvGdot,ds(:,i))
-     &                 -0.5d0*dt*xi*ds(:,i)
+     &                 -0.5d0*dt*matmul(GinvGdot,ds(:,i)) !パリネロラーマン法による速度制御
+     &                 -0.5d0*dt*xi*ds(:,i) !のせフーバー法による速度制御
       enddo
       call p_tesor(s,ds,h,dh,str,ntot,mass,vol,p,e_kin,ekin)
       dh=dh+0.5d0*dt*matmul((p-Preg),sgm)/w
@@ -167,23 +173,21 @@
       
       rec1(istep)=tempk
       rec2(istep)=f
-      rec3(istep)=dh(1,1)+dh(2,2)+dh(3,3)
-      rec4(istep)=0.5d0*w*sum(dh**2)
-      rec5(istep)=vol*Preg(1,1)
+      rec3(istep)=nan
+      rec4(istep)=nan
+      rec5(istep)=vol
       rec6(istep)=hamil
       
       enddo
 !=====================loopここまで==============================
+      call cpu_time(t2)
 
-      write(*,*)w
-      write(*,"(5x,F0.4,A)")
-     &     abs((hmax-hmin)/hamil*100),'%'
-      write(*,*)pmax*Gp,pmin*Gp,(pmax-pmin)*Gp
+      write(*,*)'lcl',t2-t1,'s'
 
 !　グラフ
       smap=0.d0
       call sma(gpa,smap,maxstep)
-      open(12,file='t3.dat')
+      open(12,file='t.dat')
       do i=1,maxstep
         write(12,*)rec1(i),rec2(i),rec3(i),rec4(i),rec5(i),rec6(i)
      &             ,gpa(i)*gp,smap(i)*Gp
@@ -191,10 +195,10 @@
       close(12)  
 !
 !　記録
-      do i=1,ntot
-        x(:,i)=matmul(h,s(:,i))
-        v(:,i)=matmul(h,ds(:,i))+matmul(dh,s(:,i))
-      enddo
+ !     do i=1,ntot
+ !       x(:,i)=matmul(h,s(:,i))
+ !       v(:,i)=matmul(h,ds(:,i))+matmul(dh,s(:,i))
+ !     enddo
  !     call kiroku(h,ntot,bohr,x,v)
 !
 

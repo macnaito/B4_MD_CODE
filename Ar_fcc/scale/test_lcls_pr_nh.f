@@ -1,6 +1,10 @@
-!　スケールした座標でのMD エネルギー保存を確認
-!　lclを少し改良　parrinello_rahman+nose_hoover
-!　変数のWとtauを決めたい
+!　スケールした座標でのMD
+!　parrinello_rahman+nose_hoover
+! リンクリスト　sで行う　
+!　無駄に改良
+!　next nosehoover→langevine法？？？
+!　next　シミュレーションボックスを直接動かす　prは消す
+
 
       program ljmd
       
@@ -18,23 +22,14 @@
       character*40 filename
       real*8 p(3,3),h(3,3),h_inver(3,3),sgm(3,3)
       real*8 str(3,3),e_kin(3,3)
-      real*8 dh(3,3),Preg(3,3),GinvGdot(3,3)
-      real*8 Treg,Q,tau,xi,gkbt,eta
-      real*8 wloop(7)
-      integer c
+      real*8 dh(3,3),Preg(3,3),GinvGdot(3,3),hinvdh(3,3)
+      real*8 time,initGPa
+      integer maxstep
+      character*100 line
 
       real*8,allocatable,dimension(:)::rec1,rec2,rec3,rec4,rec5,rec6
       real*8,allocatable,dimension(:)::gpa,smap
-
-      maxstep=3000
-      allocate(gpa(maxstep),smap(maxstep),rec1(maxstep),rec2(maxstep)
-     &        ,rec3(maxstep),rec4(maxstep),rec5(maxstep),rec6(maxstep))
-
-      wloop=[1d8,5d8,1d9,5d9,1d10,5d10,1d11]
-
-      do c=1,7
-      w=wloop(c)*dt
-
+      
       k=0
       eta=0.d0
       hmax=-1.d10
@@ -42,9 +37,11 @@
       pmax=-1d10
       pmin=1d10
       xi=0.d0
+      dh=0.d0
+      
 
 !　.datファイルの読み込み      
-      open(10,file='fainal.dat')
+      open(10,file='0.1gpa_50k.dat')
        read(10,*)ntot
         allocate(x(3,ntot),v(3,ntot),frc(3,ntot),s(3,ntot),ds(3,ntot)
      &           ,mass(ntot),lsp(ntot))
@@ -60,14 +57,15 @@
       h=h/bohr
       x(:,:)=x(:,:)/bohr    !a.u.に変換
 !
-      dt=41.d0*5.d0
-      call vol_inverse(h,vol,h_inver,sgm)
-!　スケール  
+      dt=41.d0*2.d0
+      call vol_inverse(h,vol,h_inver)
+      
+   !スケール  
       do i=1,ntot
         s(:,i)=matmul(h_inver,x(:,i))
         ds(:,i)=matmul(h_inver,v(:,i))
       enddo 
-      call pot(f,frc,s,x,ntot,h,str)
+      call pot(f,frc,s,ntot,h,str)
 
 ! 温度圧力の計算
       ekin=0.d0
@@ -76,39 +74,67 @@
       enddo
       tempk=ekin*2.d0/3.d0/ntot/kb
       call p_tesor(s,ds,h,dh,str,ntot,mass,vol,p,e_kin,ekin)
-      gpa(1)=(p(1,1)+p(2,2)+p(3,3))/3.d0
-!
+      initGPa=(p(1,1)+p(2,2)+p(3,3))/3.d0
+!　目標圧力
       Preg=0.d0
-      Preg(1,1)=1d-4/Gp; Preg(2,2)=1d-4/Gp; Preg(3,3)=1d-4/Gp
-      dh=0.d0
- !     w=3.d9
+      Preg(1,1)=1d-1; Preg(2,2)=1d-1; Preg(3,3)=1d-1
+ !     Preg(1,2)=1d-1/Gp; Preg(2,1)=1d-1/Gp
+      Preg=Preg/Gp
+!
+
+!　timestep,maxstep,Pregの決定
+      write(*,'(A,1x,F0.2,A,4x,A,1x,F0.2,A)')
+     &  '初期温度',tempk,'K','初期圧力',initGPa*Gp,'Gpa'
+      write(*,'(A,3x,A,1x,3F0.2,1x,A,1x,3F0.2)')
+     &  '目標圧力','対角項',Preg(1,1)*Gp,Preg(2,2)*Gp,Preg(3,3)*Gp
+     &  ,'非対角項',Preg(1,2)*Gp,Preg(1,3)*Gp,Preg(2,3)*Gp
+
+      write(*,'(A)',advance='no')'dt= 2fs ?? '
+      time=2.d0
+      read(*,'(A)')line
+      if(len_trim(line)/=0) then
+       read(line,*)time
+      endif
+
+      write(*,'(A)',advance='no')'maxstep= 2000step ?? '
+      maxstep=2000
+      read(*,'(A)')line
+      if(len_trim(line)/=0) then
+       read(line,*)maxstep
+      endif
+
+      write(*,'(A)',advance='no')'目標温度= 50K ?? '
       Treg=50.d0
+      read(*,'(A)')line
+      if(len_trim(line)/=0) then
+       read(line,*)Treg
+      endif
+
+      dt=41.d0*time
+      allocate(gpa(maxstep),smap(maxstep),rec1(maxstep),rec2(maxstep)
+     &        ,rec3(maxstep),rec4(maxstep),rec5(maxstep),rec6(maxstep))
+!
+
+      w=3.d7
       tau=65.d0*dt
       gkbt=3.d0*ntot*Treg*kb
       Q=gkbt*tau**2
-      xi=0.d0
 
- !     write(*,'(A,1x,F0.2,A,4x,A,1x,F0.2,A)')
- !    &  '初期温度',tempk,'K','初期圧力',gpa(1)*Gp*1d4,'気圧'
- !     write(*,'(A,1x,F0.2,A,4x,A,1x,F0.2,A)')
- !    &  '目標温度',Treg,'K','目標圧力',Preg(1,1)*Gp*1d4,'気圧'
- !     write(*,'(A,f0.2,A,2x,A,I0,A)')
- !    & 'dt:',dt/41.d0,'fs','maxstep:',maxstep,'step'
- !     write(*,*)'温度制御nosehoover 圧力制御parirellorahman'
-
- !     read(*,*)
 
 !=========================計算スタート====================
+      call cpu_time(t1)
       do istep=1,maxstep
 
 !　速度の更新
-      GinvGdot=matmul(dh,h_inver)+transpose(matmul(dh,h_inver))
+      hinvdh=matmul(h_inver,dh)
+      GinvGdot=hinvdh+transpose(hinvdh)
       do i=1,ntot
         ds(:,i)=ds(:,i)+0.5d0*dt*matmul(h_inver,frc(:,i)/mass(i))
-     &                 -0.5d0*dt*matmul(GinvGdot,ds(:,i))
-     &                 -0.5d0*dt*xi*ds(:,i)
+     &                 -0.5d0*dt*matmul(GinvGdot,ds(:,i)) !パリネロラーマン法による速度制御
+     &                 -0.5d0*dt*xi*ds(:,i) !のせフーバー法による速度制御
       enddo
       call p_tesor(s,ds,h,dh,str,ntot,mass,vol,p,e_kin,ekin)
+      call adjugate_matrix(h,sgm)
       dh=dh+0.5d0*dt*matmul((p-Preg),sgm)/w
       xi=xi+0.5d0*dt*(2.d0*ekin-gkbt)/Q
       eta=eta+xi*0.5d0*dt
@@ -123,18 +149,19 @@
       enddo
       h=h+dt*dh
 ! 
-      x=matmul(h,s)
-      call vol_inverse(h,vol,h_inver,sgm)
-      call pot(f,frc,s,x,ntot,h,str)
+      call vol_inverse(h,vol,h_inver)
+      call pot(f,frc,s,ntot,h,str)
 
 !　速度の更新
-      GinvGdot=matmul(dh,h_inver)+transpose(matmul(dh,h_inver))
+      hinvdh=matmul(h_inver,dh)
+      GinvGdot=hinvdh+transpose(hinvdh)
       do i=1,ntot
         ds(:,i)=ds(:,i)+0.5d0*dt*matmul(h_inver,frc(:,i)/mass(i))
      &                 -0.5d0*dt*matmul(GinvGdot,ds(:,i))
      &                 -0.5d0*dt*xi*ds(:,i)
       enddo
       call p_tesor(s,ds,h,dh,str,ntot,mass,vol,p,e_kin,ekin)
+      call adjugate_matrix(h,sgm)
       dh=dh+0.5d0*dt*matmul((p-Preg),sgm)/w
       xi=xi+0.5d0*dt*(2.d0*ekin-gkbt)/Q
       eta=eta+xi*0.5d0*dt
@@ -142,9 +169,7 @@
 !　温度・圧力の計算
       tempk=ekin*2.d0/3.d0/ntot/kb
       gpa(istep)=(p(1,1)+p(2,2)+p(3,3))/3.d0
-      if(istep>400) then
-       pmax=max(pmax,gpa(istep));pmin=min(pmin,gpa(istep))
-      endif
+      pmax=max(pmax,gpa(istep));pmin=min(pmin,gpa(istep))
 
 
 !　xyzファイルの出力
@@ -173,72 +198,88 @@
      &    +vol*(Preg(1,1)+Preg(2,2)+Preg(3,3))/3.d0
      &    +0.5d0*Q*xi**2+gkbt*eta
       hmax=max(hmax,hamil);hmin=min(hmin,hamil)
- !     write(*,*)istep,tempk,gpa(istep)*Gp,hamil
+      write(*,*)istep,tempk,gpa(istep)*Gp,hamil
       
       rec1(istep)=tempk
       rec2(istep)=f
-      rec3(istep)=ekin
-      rec4(istep)=0.5d0*w*sum(dh**2)
-      rec5(istep)=vol*Preg(1,1)
+      rec3(istep)=h(1,1)
+      rec4(istep)=nan
+      rec5(istep)=vol
       rec6(istep)=hamil
       
       enddo
+      call cpu_time(t2)
 !=====================loopここまで==============================
 
-      write(*,*)c
-      write(*,"(5x,F0.4,A)")
-     &     abs((hmax-hmin)/hamil*100),'%'
-      write(*,*)pmax*Gp,pmin*Gp,(pmax-pmin)*Gp
-      deallocate(x,v,frc,s,ds,mass,lsp)
-
-      enddo
-
-      
+      write(*,*)'lcls',t2-t1,'s'
 
 !　グラフ
       smap=0.d0
       call sma(gpa,smap,maxstep)
-      open(12,file='testw.dat')
+      open(12,file='t3.dat')
       do i=1,maxstep
         write(12,*)rec1(i),rec2(i),rec3(i),rec4(i),rec5(i),rec6(i)
-     &             ,gpa(i)*gp,smap(i)*Gp
+     &             ,gpa(i)*Gp,smap(i)*Gp
       enddo
       close(12)  
+!
+!　記録
+      do i=1,ntot
+        x(:,i)=matmul(h,s(:,i))
+        v(:,i)=matmul(h,ds(:,i))+matmul(dh,s(:,i))
+      enddo
+!      call kiroku(h,ntot,bohr,x,v)
 !
 
       end program
 
 
-!　体積と逆行列
-      subroutine vol_inverse(h,vol,h_inver,sgm)
+! 体積と逆行列
+      subroutine vol_inverse(cube,vol,cube_inver)
       implicit real*8 (a-h,o-z)
-      real*8 h(3,3),h_inver(3,3),sgm(3,3)
+      real*8 cube(3,3),cube_inver(3,3),sgm(3,3)
        
-      vol=h(1,1)*h(2,2)*h(3,3)+h(1,2)*h(2,3)*h(3,1)
-     &   +h(1,3)*h(2,1)*h(3,2)-h(1,3)*h(2,2)*h(3,1)
-     &   -h(1,2)*h(2,1)*h(3,3)-h(1,1)*h(2,3)*h(3,2)  
+      vol=cube(1,1)*cube(2,2)*cube(3,3)+cube(1,2)*cube(2,3)*cube(3,1)
+     &   +cube(1,3)*cube(2,1)*cube(3,2)-cube(1,3)*cube(2,2)*cube(3,1)
+     &   -cube(1,2)*cube(2,1)*cube(3,3)-cube(1,1)*cube(2,3)*cube(3,2)  
  
-      sgm(1,1)=(h(2,2)*h(3,3)-h(2,3)*h(3,2))
-      sgm(1,2)=(h(1,3)*h(3,2)-h(1,2)*h(3,3))
-      sgm(1,3)=(h(1,2)*h(2,3)-h(1,3)*h(2,2))
-      sgm(2,1)=(h(2,3)*h(3,1)-h(2,1)*h(3,3))
-      sgm(2,2)=(h(1,1)*h(3,3)-h(1,3)*h(3,1))
-      sgm(2,3)=(h(1,3)*h(2,1)-h(1,1)*h(2,3))
-      sgm(3,1)=(h(2,1)*h(3,2)-h(2,2)*h(3,1))
-      sgm(3,2)=(h(1,2)*h(3,1)-h(1,1)*h(3,2))
-      sgm(3,3)=(h(1,1)*h(2,2)-h(1,2)*h(2,1))
+      sgm(1,1)=(cube(2,2)*cube(3,3)-cube(2,3)*cube(3,2))
+      sgm(1,2)=(cube(1,3)*cube(3,2)-cube(1,2)*cube(3,3))
+      sgm(1,3)=(cube(1,2)*cube(2,3)-cube(1,3)*cube(2,2))
+      sgm(2,1)=(cube(2,3)*cube(3,1)-cube(2,1)*cube(3,3))
+      sgm(2,2)=(cube(1,1)*cube(3,3)-cube(1,3)*cube(3,1))
+      sgm(2,3)=(cube(1,3)*cube(2,1)-cube(1,1)*cube(2,3))
+      sgm(3,1)=(cube(2,1)*cube(3,2)-cube(2,2)*cube(3,1))
+      sgm(3,2)=(cube(1,2)*cube(3,1)-cube(1,1)*cube(3,2))
+      sgm(3,3)=(cube(1,1)*cube(2,2)-cube(1,2)*cube(2,1))
+      cube_inver=sgm/vol
+      return
+      end
+!
+! 余因子行列
+      subroutine adjugate_matrix(cube,sgm)
+      implicit none
+      real*8 cube(3,3),sgm(3,3)
 
-      h_inver=sgm/vol
+      sgm(1,1)=(cube(2,2)*cube(3,3)-cube(2,3)*cube(3,2))
+      sgm(1,2)=(cube(1,3)*cube(3,2)-cube(1,2)*cube(3,3))
+      sgm(1,3)=(cube(1,2)*cube(2,3)-cube(1,3)*cube(2,2))
+      sgm(2,1)=(cube(2,3)*cube(3,1)-cube(2,1)*cube(3,3))
+      sgm(2,2)=(cube(1,1)*cube(3,3)-cube(1,3)*cube(3,1))
+      sgm(2,3)=(cube(1,3)*cube(2,1)-cube(1,1)*cube(2,3))
+      sgm(3,1)=(cube(2,1)*cube(3,2)-cube(2,2)*cube(3,1))
+      sgm(3,2)=(cube(1,2)*cube(3,1)-cube(1,1)*cube(3,2))
+      sgm(3,3)=(cube(1,1)*cube(2,2)-cube(1,2)*cube(2,1))
 
       return
       end
 !
 !　call pot
-      subroutine pot(f,frc,s,x,ntot,h,str)
+      subroutine pot(f,frc,s,ntot,h,str)
       implicit real*8 (a-h,o-z)
       integer hx_lc,hy_lc,hz_lc,hxyz_lc,hyz_lc,pea
-      real*8 frc(3,ntot),x(3,ntot),h(3,3),str(3,3),rij(3)
-      real*8 hx,hy,hz,t(3,8),s(3,ntot)
+      real*8 frc(3,ntot),h(3,3),str(3,3),rij(3)
+      real*8 s(3,ntot),G(3,3),G_inver(3,3)!メトリックテンソル
       parameter(sgm=3.4d0/0.5292d0)  
       parameter(eps=120d0/11605d0/27.2116d0)
       parameter(sgm12=sgm**12,sgm6=sgm**6)
@@ -248,52 +289,36 @@
       frc=0.d0
       str=0.d0
       pea=0
+      G=matmul(transpose(h),h)
+      call vol_inverse(G,Gvol,G_inver)
 
- !シミュレーションボックスが入る立方体の各頂点と最小最大座標、立方体の各辺の長さ
-      t(:,1)=(/0.d0,0.d0,0.d0/)
-      t(:,2)=h(:,1)
-      t(:,3)=h(:,1)+h(:,2)
-      t(:,4)=h(:,2)
-      t(:,5)=h(:,3)
-      t(:,6)=h(:,1)+h(:,3)
-      t(:,7)=h(:,1)+h(:,2)+h(:,3)
-      t(:,8)=h(:,2)+h(:,3)
-      xmin=minval(t(1,:))
-      xmax=maxval(t(1,:))
-      ymin=minval(t(2,:))
-      ymax=maxval(t(2,:))
-      zmin=minval(t(3,:))
-      zmax=maxval(t(3,:))
-      hx=xmax-xmin
-      hy=ymax-ymin
-      hz=zmax-zmin
-
-      hx_lc=int(hx/cutoff) !x座標のセル数
-      hy_lc=int(hy/cutoff)
-      hz_lc=int(hz/cutoff)
+      cxl=cutoff*sqrt(G_inver(1,1)) !cutoff半径のx軸方向の長さ
+      cyl=cutoff*sqrt(G_inver(2,2))    !scaleされた座標（0~1)
+      czl=cutoff*sqrt(G_inver(3,3))
+      hx_lc=int(1.d0/cxl)
+      hy_lc=int(1.d0/cyl)
+      hz_lc=int(1.d0/czl)
       hyz_lc=hy_lc*hz_lc     !セルのyz平面の数
       hxyz_lc=hyz_lc*hx_lc   !総セル数
-      hx_cell=hx/hx_lc     !各方向のセルの長さ
-      hy_cell=hy/hy_lc
-      hz_cell=hz/hz_lc
+      hx_cell=1.d0/hx_lc     !各方向のセルの長さ
+      hy_cell=1.d0/hy_lc
+      hz_cell=1.d0/hz_lc
       
       allocate(lshd(hxyz_lc),lscl(ntot))
       lshd=0
       do i=1,ntot
-        rx=x(1,i)-xmin
-        ry=x(2,i)-ymin
-        rz=x(3,i)-zmin
-        mx=int(rx/hx_cell)
-        my=int(ry/hy_cell)
-        mz=int(rz/hz_cell)
+        mx=int(s(1,i)/hx_cell)
+        my=int(s(2,i)/hy_cell)
+        mz=int(s(3,i)/hz_cell)
         m=mx*hyz_lc+my*hz_lc+mz+1
         lscl(i)=lshd(m)
         lshd(m)=i
       enddo
 
-      kuxmax=ceiling(cutoff/hx_cell)
-      kuymax=ceiling(cutoff/hy_cell)
-      kuzmax=ceiling(cutoff/hz_cell)
+      kuxmax=ceiling(cxl/hx_cell)
+      kuymax=ceiling(cxy/hy_cell)
+      kuzmax=ceiling(cxz/hz_cell)
+
       f=0d0
       
       do mz=0,hz_lc-1
@@ -346,6 +371,7 @@
       enddo
       enddo
       deallocate(lshd,lscl)
+ !     write(*,*)pea
       return
       end
 !
@@ -417,7 +443,7 @@
       real*8 h(3,3),x(3,ntot),v(3,ntot),bohr
       integer i,ntot
       
-      open(13,file='fainal.dat')
+      open(13,file='x.dat')
       write(13,*)ntot
       do i=1,ntot
         write(13,'(a,1x,i5,6e15.7)') 'Ar',i,
